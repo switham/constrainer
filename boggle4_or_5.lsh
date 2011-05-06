@@ -1,0 +1,267 @@
+#!/fs/local/bin/lsh
+### boggle4_or_5.lsh --
+
+# execute-file /fs/bin/edit.lsh boggle4_or_5.lsh -load
+
+execute-file /fs/bin/prcol.cmn
+
+global dictionary-files
+set-list dictionary-files /fs/etc/words.boggle /usr/dict/words.boggle /usr/dict/words
+global dictionary
+set-list dictionary  {# clear if code is re-loaded}
+
+procedure read-dictionary
+   local word
+
+   set-list dictionary
+   for dictionary-file {all-of dictionary-files}
+      if {file? (dictionary-file)}
+         raw-print Reading dictionary (dictionary-file)...
+         file-read-loop (dictionary-file) word
+            append-to-list dictionary (word)
+            cycle
+         print   {length-of-list dictionary} words.
+         return
+      else
+         cycle
+   print Couldn't find a dictionary to read!
+
+
+global squares
+set-list squares 0 1 2 3 4 5 6 7 8 9 A B C D E F G H J K L M N P R
+
+global board-width board-size board-width-English board-size-English
+set-string board-width 5  {# Lakota has no built-in sqrt.}
+set-string board-size {length-of-list squares}
+
+if {equal? (board-width) 4}  set-string board-width-English four
+if {equal? (board-width) 5}  set-string board-width-English five
+if {equal? (board-size) 16}  set-string board-size-English sixteen
+if {equal? (board-size) 25}  set-string board-size-English twenty five
+
+global squares-string
+set-string squares-string {all-of squares}
+
+global padded-squares
+set-list padded-squares
+first squares
+do i 1 (board-width)
+   do j 1 (board-width)
+      append-to-list padded-squares (squares)
+      next squares
+      cycle
+   append-to-list padded-squares .
+   cycle
+
+global paths
+set-list paths  {# clear if code is re-loaded}
+
+
+global old-dice
+begin-list old-dice
+   # These are the dice from the original 4 x 4 Boggle:
+   cotumi erlytt hnmuiq ehtwvr aneaeg stytid ooajbb dlvrey
+   afkfps tisseo suneei schoap ottwoa gehnew rnhlmz xielrd
+
+global dice
+begin-list dice
+   # These are dice of a Boggle Deluxe set:
+   xjzqkb toettm aisfar endann tietii
+   etcspi dohthn yirphr firpys gwrvro
+   ouwton sensus lhdhor cctwns lectii
+   lorddn fasaar eeaeea safyir nordlh
+   tieclp outoot meeeea guamee mngnea
+
+
+global score-table
+set-list score-table 0 0 1 1 2 3 5 11
+
+
+procedure generate-board-string
+   local die board-string faces i
+
+   # Pick one face from each die:
+   set-list faces
+   for die {all-of dice}
+      chars (die)
+      set-list-index-to chars {+ {random 6} 1}
+      append-to-list faces (chars)
+      cycle
+
+   # Shuffle the chosen faces to fill in the board string:
+   set-string board-string
+   do i 1 {length-of-list squares}
+      set-list-index-to faces {+ {random {length-of-list faces}} 1}
+      set-string board-string (board-string)(faces)
+      set-list faces {left-part-of faces} {right-part-of faces}
+      cycle
+
+   return (board-string)
+
+
+procedure print-board-string board-string
+   local i line
+
+   do i 1 (board-width)
+      chop (board-width) (board-string)
+      assign chop line board-string
+      print {separate (space)(space) {chars {uppercase (line)}}}
+      cycle
+
+
+procedure generate-paths
+   local i j k l m n o row s t
+
+   set-string row {+ (board-width) 1}
+   set-string i 0
+   for s {all-of padded-squares}
+      increment i
+      for j {+ (i) 1} {+ (i) (row) -1} {+ (i) (row)} {+ (i) (row) 1}  
+         # Diagonals ARE allowed!
+         if {and {> (j) 0} {<= (j) {length-of-list padded-squares}}}
+            set-list-index-to padded-squares (j)
+            set-string t (padded-squares)
+            local adjacent-(s) adjacent-(t)
+            if not {equal? (t) .}
+               append-to-list adjacent-(s) (t)
+            if not {equal? (s) .}
+               append-to-list adjacent-(t) (s)
+         cycle
+      cycle
+   set-list paths
+   for i {all-of squares}
+      for j {all-of adjacent-(i)}
+         for k {list-difference adjacent-(j) (i)}
+            # append-to-list paths (i)(j)(k)  {# No length-3 paths for Deluxe.}
+            for l {list-difference adjacent-(k) (i) (j)}
+               append-to-list paths (i)(j)(k)(l)
+               for m {list-difference adjacent-(l) (i) (j) (k)}
+                  append-to-list paths (i)(j)(k)(l)(m)
+                  for n {list-difference adjacent-(m) (i) (j) (k) (l)}
+                     append-to-list paths (i)(j)(k)(l)(m)(n)
+                     for o {list-difference adjacent-(n) (i) (j) (k) (l) (m)}
+                        append-to-list paths (i)(j)(k)(l)(m)(n)(o)
+                        cycle
+                     cycle
+                  cycle
+               cycle
+            cycle
+         cycle
+      cycle
+
+
+procedure setup-dictionary-and-paths
+   if not {defined? (dictionary)}
+      read-dictionary
+   if not {defined? (paths)}
+      raw-print Generating paths...
+      generate-paths
+      print   {length-of-list paths} paths.
+
+
+procedure find-solutions board-string
+   local path words
+
+   for path {all-of paths}
+      append-to-list words {translate (squares-string) (board-string) (path)}
+      cycle
+   set-list words {sort {uniq {all-of words}}}
+   return {intersection words dictionary}
+
+   
+procedure play-boggle
+   local i line squares-string board-string path words
+
+   setup-dictionary-and-paths
+   loop
+      :print Type in the square, return to quit, or ? for more options:
+      set-list board-string
+      while {< {length-of-string (board-string)} (board-size)}
+         raw-print >(space)
+         read line
+         if not {defined? (line)}
+         or-if {equal-any-of? (line) ? * **}
+	    set-string board-string
+            escape
+
+         set-string board-string (board-string)(line)
+         cycle
+      if not {defined? (line)}
+         return
+
+      if {equal? (line) **}
+         play-boggle-alone
+         return
+
+      if {equal? (line) ?}
+         local w
+         set-string w (board-width-English)
+         print To enter a square, type in (w) lines of (w) letters each,
+         print    (LP)or just (board-size-English) letters(RP).
+         print Press return on an empty line to quit the game.
+         print Type "*" to have the computer generate a board.
+         print Type "**" to have the computer generate and play boards
+         print    all by itself continuously.
+         cycle
+
+      if {equal? (line) *}
+         generate-board-string
+         print-board-string (generate-board-string)
+         set-string board-string (generate-board-string)
+      find-solutions (board-string)
+      set-list words {all-of find-solutions}
+      print Press return to see {length-of-list words} words...
+      read line
+      print-down-columns {all-of words}
+      score-solutions {all-of words}
+      print Score: (score-solutions)
+      cycle
+
+
+procedure score-solutions words
+   local score word len
+
+   set-string total-score 0
+   for word {all-of words}
+      set-string len {length-of-string (word)}
+      if {> (len) 8}
+         set-string len 8
+      set-list-index-to score-table (len)
+      set-string score {+ (score) (score-table)}
+      cycle
+   return (score)
+
+
+procedure play-boggle-alone
+   local score ngames
+
+   setup-dictionary-and-paths
+   set-string total-score 0
+   set-string ngames 0
+   set-string best-score 0
+   set-string best-board
+   loop
+      generate-board-string
+      print-board-string (generate-board-string)
+      find-solutions (generate-board-string)
+      print-down-columns {all-of find-solutions}
+      score-solutions {all-of find-solutions}
+      set-string total-score {+ (total-score) (score-solutions)}
+      if {> (score-solutions) (best-score)}
+         set-string best-board (generate-board-string)
+         set-string best-score (score-solutions)
+      increment ngames
+      print Score: (score-solutions) Average: {/ (total-score) (ngames)}
+      print Best board: (best-board) (LP)score: (best-score)(RP) 
+      cycle
+
+
+if {equal? {argument 1} -?}
+   print-error Usage: boggle [-load | -alone]
+   quit-returning 1
+
+else if {equal? {argument 1} -alone}
+   play-boggle-alone
+else
+   if not {equal? {argument 1} -load}
+      play-boggle

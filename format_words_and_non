@@ -1,0 +1,66 @@
+#!/fs/local/bin/lsh
+
+# execute-file /fs/bin/edit.lsh format-words-and-non -load
+
+execute-file /fs/bin/prcol.cmn
+execute-file /fs/bin/sort-by.cmn
+
+
+procedure get-words-no-defs
+   local line word +/- defn words undefined
+
+   set-list words
+   file-read-loop words_and_non line
+      tokens (line) (space) word +/- defn
+      if not {defined? (+/-)}
+      or-if not {match? [+-] (+/-)}
+         print-error (line) : no +/-
+         cycle
+      if {defined? (defn)}
+         if {equal? (+/-) -}
+         and-if not {match? [A-Z]* (word)}
+         and-if not {match-any-of? (defn) *only* abbr* it's* see*}
+            print-error (line)
+      else
+         if {equal? (+/-) +}
+            append-to-list undefined (word)
+      append-to-list words (word)(space)(+/-)
+      cycle
+   if {defined? (undefined)}
+      print-error Undefined:
+      do-indent-down-columns print-error 2 {sort {all-of undefined}}
+   sort-by lowercase {all-of words}
+   return {all-of sort-by}
+
+
+procedure format-words-and-non
+   local line word +/- defn words lines
+
+   get-words-no-defs
+   set-list dups {all-of get-words-no-defs}
+   uniq {all-of get-words-no-defs}
+   remove-instance dups {all-of uniq}
+   if {defined? (dups)}
+      print Duplicated:
+      print-down-columns {all-of dups}
+   print-error --------------
+   do-columns-pages -pl 80 -pw 119 print {all-of uniq}
+   print (formfeed)
+   file-read-loop words_and_non line
+      tokens (line) (space) word +/- defn
+      if {defined? (defn)}
+         append-to-list lines (line)
+      cycle
+   sort-by lowercase {all-of lines}
+   for line {all-of sort-by}
+      print (line)
+      cycle
+
+
+if {equal? {argument 1} -?}
+   print-error Usage: format_words_and_non <infile >outfile
+   quit-returning 1
+
+else
+   if not {equal? {argument 1} -load}
+      format-words-and-non
