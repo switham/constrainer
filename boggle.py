@@ -4,9 +4,11 @@ boggle.py -- Play Boggle.
 """
 
 from random import *
-from copy import *
+from sys import argv
 
 DICTIONARY_FILE = "/fs/etc/words.boggle"
+DICTIONARY_FILE = "/fs/etc/words"
+DICE_FILE = "boggle_dice4.sort"
 
 
 def extend_the_paths( paths, neighbors ):
@@ -40,10 +42,8 @@ def walk_the_paths( squares, neighbors, minlen, maxlen ):
     return paths
 
 
-DICE = [ "cotumi", "erlytt", "hnmuiq", "ehtwvr", 
-         "aneaeg", "stytid", "ooajbb", "dlvrey", 
-         "afkfps", "tisseo", "suneei", "schoap", 
-         "ottwoa", "gehnew", "rnhlmz", "xielrd"  ]
+def read_the_dice(filename):
+    return list(line.rstrip().split(" ", 1)[0] for line in open(filename))
 
 
 def roll_the_dice( dice, squares ):
@@ -60,13 +60,14 @@ def print_roll( roll, rows ):
     
 
 def setup():
-    global rows, cols, squares, paths, all_words
+    global rows, cols, squares, paths, all_words, DICE
 
+    DICE = read_the_dice(DICE_FILE)
     rows = [ "0123", "4567", "89AB", "CDEF" ]
     cols = zip( *rows )
     squares = ''.join( rows )
     neighbors = meet_the_neighbors( rows, cols, squares )
-    paths = walk_the_paths( squares, neighbors, 3, 7 )
+    paths = walk_the_paths( squares, neighbors, 3, 9 )
     all_words = set( line.rstrip() for line in open( DICTIONARY_FILE ) )
 
 
@@ -79,11 +80,22 @@ def solve( paths, all_words, roll ):
     return maybe_words.intersection( all_words )
 
 
-setup()
+def cmplen(a, b):
+    return cmp(len(a), len(b))
 
-while True:
-    roll = roll_the_dice( DICE, squares )
-    print_roll( roll, rows )
-    print
-    print list( solve( paths, all_words, roll ) )
-    print
+
+def main():
+    if len(argv) > 1:
+        DICE_FILE = argv[1]
+        
+    setup()
+    while True:
+        roll = roll_the_dice( DICE, squares )
+        print_roll( roll, rows )
+        print
+        print sorted(solve(paths, all_words, roll), cmplen)
+        print
+
+
+if __name__ == "__main__":
+    main()
