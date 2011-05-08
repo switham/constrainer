@@ -26,3 +26,25 @@ p  l  i  r
 
 ['teodora', 'pottaro', 'triolet', 'arondel', 'odorate', 'tetrode', 'tartlet', 'attirer', 'pottled', 'pottier', 'otolite', 'retiled', 'notoire', 'rattier', 'rattled', 'plotton', 'politer', 'leodora', 'pettier', 'trattle', 'plotter', 'trotter', 'peloton', 'trottie', 'peltier', 'dottier', 'tilette', 'plotted', 'trottoir', 'pleodont', 'iterator', 'literato', 'ritratto', 'pliotron', 'retorted', 'toilette', 'letorate', 'plottier', 'rattlepod', 'arteriole', 'literator', 'rondelier']
 
+$ ./boggle.py kitchen_dice.sort |more
+t  n  e  m 
+b  h  a  a 
+r  x  i  h 
+c  r  u  n 
+
+['inhame', 'menhir', 'unhair', 'anthea', 'anthem', 'criant', 'huxham', 'ianthe', 'anthia', 'xanthe', 'mahant', 'anthema', 'xanthin']
+
+o  v  l  s 
+e  r  o  h 
+k  o  r  b 
+e  i  v  s 
+
+['shrove', 'korrie', 'sookie', 'lorrie', 'shover', 'rookie', 'hooker', 'rooker', 'bookie', 'broker', 'kerrie', 'soorki', 'brooke', 'shriek', 'looker', 'solver', 'booker', 'shrike', 'shrover', 'brookie', 'broeker', 'overlook', 'shrieker']
+
+i  e  f  n 
+p  g  o  o 
+t  h  x  e 
+v  i  n  m 
+
+['pigeon', 'phoenix']
+

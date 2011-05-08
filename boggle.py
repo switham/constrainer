@@ -1,22 +1,39 @@
 #!/usr/bin/env python
 """\
-boggle.py -- Play Boggle.
+boggle.py --
 """
 
-from random import *
-from sys import argv
-
-DICTIONARY_FILE = "/fs/etc/words.boggle"
-DICTIONARY_FILE = "/fs/etc/words"
-DICE_FILE = "boggle_dice4.sort"
+import random
+import sys
+import argparse
 
 
-def extend_the_paths( paths, neighbors ):
-    """ Generate paths that are one step longer than the given paths. """
-    for path in paths:
-        for c in neighbors[ path[-1] ]:
-            if not c in path:
-                yield path + c
+def main():
+    parser = argparse.ArgumentParser(
+        description='Generate and solve 4 x 4 Boggle boards.')
+    parser.add_argument("--words",
+        type=str, default="/fs/etc/words.boggle",
+        help="name of file of usable words "
+             "(default /fs/etc/words.boggle)")
+    parser.add_argument("--dice",
+        type=str, default="boggle_dice4.sort",
+        help="name of file of descriptions of dice "
+             "(default boggle_dice4.sort)")
+    parser.add_argument("--minlen",
+        type=int, default=3,
+        help="minimum length of words to find (default 3)")
+    parser.add_argument("--maxlen",
+        type=int, default=9,
+        help="maximum length of words to find (default 9)")
+    args = parser.parse_args()
+    setup(args)
+    while True:
+        roll = roll_the_dice(dice, squares)
+        print_roll(roll, rows)
+        print
+        print sorted(solve(paths, all_words, roll),
+                     lambda a, b: cmp(len(a), len(b)))
+        print
 
 
 def meet_the_neighbors( rows, cols, squares ):
@@ -31,70 +48,58 @@ def meet_the_neighbors( rows, cols, squares ):
     return neighbors
 
 
-def walk_the_paths( squares, neighbors, minlen, maxlen ):
+def extend_the_paths( paths, neighbors ):
+    """ Generate paths that are one step longer than the given paths. """
+    for path in paths:
+        for c in neighbors[ path[-1] ]:
+            if c not in path:
+                yield path + c
+
+
+def walk_the_paths(squares, neighbors, minlen, maxlen):
     """ Return list of possible paths where minlen <= length <= maxlen. """
     new_paths = squares
     paths = []
-    while len( new_paths[0] ) <= maxlen:
-        if len( new_paths[0] ) >= minlen:
+    while len(new_paths[0]) <= maxlen:
+        if len(new_paths[0]) >= minlen:
             paths += new_paths
-        new_paths = list( extend_the_paths( new_paths, neighbors ) )
+        new_paths = list(extend_the_paths( new_paths, neighbors))
     return paths
 
 
-def read_the_dice(filename):
-    return list(line.rstrip().split(" ", 1)[0] for line in open(filename))
-
-
-def roll_the_dice( dice, squares ):
+def roll_the_dice(dice, squares):
     """ Return a dictionary of a die face for each square. """
-    shuffle( dice )
-    return dict( (square, choice(die)) for square,die in zip(squares,dice) )
+    random.shuffle(dice)
+    return dict((square, random.choice(die))
+                for square, die in zip(squares,dice))
 
 
-def print_roll( roll, rows ):
+def print_roll(roll, rows):
     for row in rows:
-        for square in row:
-            print roll[ square ]+" ",
-        print
+        print "  ".join(roll[square] for square in row)
     
 
-def setup():
-    global rows, cols, squares, paths, all_words, DICE
+def setup(args):
+    global rows, cols, squares, paths, all_words, dice
 
-    DICE = read_the_dice(DICE_FILE)
+    dice = list(line.rstrip().split(" ", 1)[0] for line in open(args.dice))
     rows = [ "0123", "4567", "89AB", "CDEF" ]
-    cols = zip( *rows )
-    squares = ''.join( rows )
-    neighbors = meet_the_neighbors( rows, cols, squares )
-    paths = walk_the_paths( squares, neighbors, 3, 9 )
-    all_words = set( line.rstrip() for line in open( DICTIONARY_FILE ) )
+    cols = zip(*rows)
+    squares = ''.join(rows)
+    neighbors = meet_the_neighbors(rows, cols, squares)
+    paths = walk_the_paths(squares, neighbors, args.minlen, args.maxlen)
+    all_words = set(line.rstrip().replace("qu", "q")
+                    for line in open(args.words))
 
 
-def solve( paths, all_words, roll ):
-    table = [ chr(i) for i in range(256) ]
+def solve(paths, all_words, roll):
+    table = [chr(i) for i in range(256)]
     for square, letter in roll.iteritems():
-        table[ ord(square) ] = letter
-    table = "".join( table )
-    maybe_words = set( path.translate(table) for path in paths )
-    return maybe_words.intersection( all_words )
-
-
-def cmplen(a, b):
-    return cmp(len(a), len(b))
-
-
-def main():
-    if len(argv) > 1:
-        DICE_FILE = argv[1]
-        
-    setup()
-    while True:
-        roll = roll_the_dice( DICE, squares )
-        print_roll( roll, rows )
-        print
-        print sorted(solve(paths, all_words, roll), cmplen)
-        print
+        table[ord(square)] = letter
+    table = "".join(table)
+    maybe_words = set(path.translate(table) for path in paths)
+    match_words = maybe_words.intersection(all_words)
+    return [word.replace("q", "qu") for word in match_words]
 
 
 if __name__ == "__main__":
