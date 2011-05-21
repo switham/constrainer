@@ -8,9 +8,9 @@ import sys
 import argparse
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser(
-        description='Generate and solve 4 x 4 Boggle boards.')
+        description="Generate and solve 4 x 4 Boggle boards.")
     parser.add_argument("--words",
         type=str, default="/fs/etc/words.boggle",
         help="name of file of usable words "
@@ -25,15 +25,20 @@ def main():
     parser.add_argument("--maxlen",
         type=int, default=9,
         help="maximum length of words to find (default 9)")
-    args = parser.parse_args()
-    setup(args)
-    while True:
-        roll = roll_the_dice(dice, squares)
-        print_roll(roll, rows)
-        print
-        print sorted(solve(paths, all_words, roll),
-                     lambda a, b: cmp(len(a), len(b)))
-        print
+    return parser.parse_args()
+
+
+def setup(args):
+    global rows, cols, squares, paths, all_words, dice
+
+    dice = [line.rstrip().split(" ", 1)[0] for line in open(args.dice)]
+    rows = ["0123", "4567", "89AB", "CDEF"]
+    cols = zip(*rows)
+    squares = ''.join(rows)
+    neighbors = meet_the_neighbors(rows, cols, squares)
+    paths = walk_the_paths(squares, neighbors, args.minlen, args.maxlen)
+    all_words = set(line.rstrip().replace("qu", "q")
+                    for line in open(args.words))
 
 
 def meet_the_neighbors( rows, cols, squares ):
@@ -79,19 +84,6 @@ def print_roll(roll, rows):
         print "  ".join(roll[square] for square in row)
     
 
-def setup(args):
-    global rows, cols, squares, paths, all_words, dice
-
-    dice = list(line.rstrip().split(" ", 1)[0] for line in open(args.dice))
-    rows = [ "0123", "4567", "89AB", "CDEF" ]
-    cols = zip(*rows)
-    squares = ''.join(rows)
-    neighbors = meet_the_neighbors(rows, cols, squares)
-    paths = walk_the_paths(squares, neighbors, args.minlen, args.maxlen)
-    all_words = set(line.rstrip().replace("qu", "q")
-                    for line in open(args.words))
-
-
 def solve(paths, all_words, roll):
     table = [chr(i) for i in range(256)]
     for square, letter in roll.iteritems():
@@ -103,4 +95,12 @@ def solve(paths, all_words, roll):
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    setup(args)
+    while True:
+        roll = roll_the_dice(dice, squares)
+        print_roll(roll, rows)
+        print
+        print sorted(solve(paths, all_words, roll),
+                     lambda a, b: cmp(len(a), len(b)))
+        print
