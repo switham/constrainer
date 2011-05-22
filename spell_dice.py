@@ -86,6 +86,7 @@ def spell(word, dice, multi=False, just_count=False):
     def massage_rows_or_cols(move_fn, p, q):
         """
         (p, q) = (1, 0) to scan rows, or (0, 1) to scan columns.
+        Scan rows or columns, drawing conclusions that are certain.
         If we're stuck, raise the Stuck exception.
         Returns two lists of counts: Maybes, and Trues, for each row/col.
         """
@@ -103,13 +104,11 @@ def spell(word, dice, multi=False, just_count=False):
                 raise Stuck()
 
             if trues[i] == maxes[i] and maybes[i] > 0:
-                # For any already-solved row/col with Maybes: turn Maybies to false.
                 for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
                     if state[row][col] == Maybe:
                         move_fn(row, col, False)
                 maybes[i] = 0
             if maybes[i] > 0 and trues[i] + maybes[i] == mins[i]:
-                # For any unsolved row/col with *just enough* Maybes: turn them to True.
                 for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
                     if state[row][col] == Maybe:
                         move_fn(row, col, True)
