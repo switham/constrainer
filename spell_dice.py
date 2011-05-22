@@ -58,21 +58,16 @@ def spell(word, dice, multi=False, just_count=False):
         dice_mins = [0] * len(dice)
     state = [[(letter in die.faces and Maybe) for letter in letters] for die in dice]
 
-    class Counter(object):
-        """ jeez """
-        def __init__(self):
-            self.counter = 0
-
-        def increment(self):
-            self.counter += 1
-
+    spell.n_solutions = 0
+    
     class Done(Exception):
         pass
 
-    n_solutions = Counter()
-    
+    class Stuck(Exception):
+        pass
+
     def solution():
-        n_solutions.increment()
+        spell.n_solutions += 1
         if just_count:
             return
         
@@ -86,8 +81,6 @@ def spell(word, dice, multi=False, just_count=False):
             die = letter_dice[letter].pop()
             print letter, die
         print
-        if not multi:
-            raise Done()
 
 
     def move(log, row, col, new_value):
@@ -105,8 +98,7 @@ def spell(word, dice, multi=False, just_count=False):
         p, q = 1, 0 to scan rows, or 0, 1 to scan columns.
         For any already-solved row/col with Maybes: turn them to false.
         For any unsolved row/col with *just enough* Maybes: turn them to True.
-        Returns either  list of counts of Maybes, list of counts of Trues  for each row/col
-                    or  None, None if there is a row or column that can't be solved.
+        Returns list of counts of Maybes, list of counts of Trues for each row/col.
         """
         n_rows_or_cols = len(state) * p + len(state[0]) * q
         n_elements_each = len(state) * q + len(state[0]) * p
@@ -116,9 +108,8 @@ def spell(word, dice, multi=False, just_count=False):
             for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
                 trues[i] += (state[row][col] == True)
                 maybes[i] += (state[row][col] == Maybe)
-            assert trues[i] <= maxes[i]
-            if trues[i] + maybes[i] < mins[i]:
-                return None, None
+            if trues[i] + maybes[i] < mins[i] or trues[i] > maxes[i]:
+                raise Stuck()
 
             if trues[i] == maxes[i] and maybes[i] > 0:
                 for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
@@ -139,20 +130,20 @@ def spell(word, dice, multi=False, just_count=False):
         prev_len = -1
         while len(log) > prev_len:
             prev_len = len(log)
-            dice_maybes, dice_trues = count_rows_or_cols(log, 1, 0, dice_maxes, dice_mins)
-            if dice_maybes == None:
-                rewind(log)
-                return
-
-            letter_maybes, letter_trues = count_rows_or_cols(log, 0, 1, letter_maxes, letter_mins)
-            if letter_maybes == None:
+            try:
+                dice_maybes, dice_trues = count_rows_or_cols(log, 1, 0, dice_maxes, dice_mins)
+                letter_maybes, letter_trues = count_rows_or_cols(log, 0, 1, letter_maxes, letter_mins)
+            except Stuck:
                 rewind(log)
                 return
 
         if sum(dice_maybes) + sum(letter_maybes) == 0:
             solution()
-            rewind(log)
-            return
+            if multi:
+                rewind(log)
+                return
+            else:
+                raise Done()
 
         # Now all certain moves have been made above.  Pick the move with the least "freedom".
 
@@ -167,12 +158,13 @@ def spell(word, dice, multi=False, just_count=False):
             move(log, row, col, tf)
             spell_more()
         rewind(log)
+        return
 
     try:
         spell_more()
     except Done:
         pass
-    return n_solutions.counter
+    return spell.n_solutions
 
 
 if __name__ == "__main__":
