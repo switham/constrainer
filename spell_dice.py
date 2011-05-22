@@ -83,25 +83,16 @@ def spell(word, dice, multi=False, just_count=False):
         print
 
 
-    def move(log, row, col, new_value):
-        log.append((row, col, state[row][col]))
-        state[row][col] = new_value
-
-
-    def rewind(log):
-        for row, col, value in reversed(log):
-            state[row][col] = value
-
-
-    def count_rows_or_cols(log, p, q, maxes, mins):
+    def massage_rows_or_cols(move_fn, p, q):
         """
-        p, q = 1, 0 to scan rows, or 0, 1 to scan columns.
-        For any already-solved row/col with Maybes: turn them to false.
-        For any unsolved row/col with *just enough* Maybes: turn them to True.
-        Returns list of counts of Maybes, list of counts of Trues for each row/col.
+        (p, q) = (1, 0) to scan rows, or (0, 1) to scan columns.
+        If we're stuck, raise the Stuck exception.
+        Returns two lists of counts: Maybes, and Trues, for each row/col.
         """
-        n_rows_or_cols = len(state) * p + len(state[0]) * q
-        n_elements_each = len(state) * q + len(state[0]) * p
+        n_rows_or_cols = len(dice) * p + len(letters) * q
+        n_elements_each = len(dice) * q + len(letters) * p
+        maxes = dice_maxes * p + letter_maxes * q
+        mins = dice_mins * p + letter_mins * q
         maybes = [0] * n_rows_or_cols
         trues = [0] * n_rows_or_cols
         for i, r, c in ((i, i * p, i * q) for i in range(n_rows_or_cols)):
@@ -112,14 +103,16 @@ def spell(word, dice, multi=False, just_count=False):
                 raise Stuck()
 
             if trues[i] == maxes[i] and maybes[i] > 0:
+                # For any already-solved row/col with Maybes: turn Maybies to false.
                 for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
                     if state[row][col] == Maybe:
-                        move(log, row, col, False)
+                        move_fn(row, col, False)
                 maybes[i] = 0
             if maybes[i] > 0 and trues[i] + maybes[i] == mins[i]:
+                # For any unsolved row/col with *just enough* Maybes: turn them to True.
                 for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
                     if state[row][col] == Maybe:
-                        move(log, row, col, True)
+                        move_fn(row, col, True)
                 maybes[i] = 0
                 trues[i] = mins[i]
         return maybes, trues
@@ -127,20 +120,29 @@ def spell(word, dice, multi=False, just_count=False):
 
     def spell_more():
         log = []
+
+        def move(row, col, new_value):
+            log.append((row, col, state[row][col]))
+            state[row][col] = new_value
+
+        def rewind():
+            for row, col, value in reversed(log):
+                state[row][col] = value
+
         prev_len = -1
         while len(log) > prev_len:
             prev_len = len(log)
             try:
-                dice_maybes, dice_trues = count_rows_or_cols(log, 1, 0, dice_maxes, dice_mins)
-                letter_maybes, letter_trues = count_rows_or_cols(log, 0, 1, letter_maxes, letter_mins)
+                dice_maybes, dice_trues = massage_rows_or_cols(move, 1, 0)
+                letter_maybes, letter_trues = massage_rows_or_cols(move, 0, 1)
             except Stuck:
-                rewind(log)
+                rewind()
                 return
 
         if sum(dice_maybes) + sum(letter_maybes) == 0:
             solution()
             if multi:
-                rewind(log)
+                rewind()
                 return
             else:
                 raise Done()
@@ -155,9 +157,9 @@ def spell(word, dice, multi=False, just_count=False):
         f, row, col = min((freedom(r, c), r, c) for r in rows for c in cols
                                                       if state[r][c] == Maybe)
         for tf in False, True:
-            move(log, row, col, tf)
+            move(row, col, tf)
             spell_more()
-        rewind(log)
+        rewind()
         return
 
     try:
