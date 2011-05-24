@@ -42,22 +42,88 @@ class Maybies(object):
     def __repr__(self):
         return "Maybe"
 
+    def __nonzero__(self):
+        raise TypeError("Can't treat Maybies like booleans.")
+
 Maybe = Maybies()
+
+
+class State(list):
+    def __init__(self):
+        self.log_stack = []
+        self.listeners = [[list() for col in self[0]] for row in self]
+
+    def _inform_listeners_and_set(self, row, col, new_y):
+        old_y = self[row][col]
+        for listener in self.listeners[row][col]:
+            listener(old_y, new_y)
+        self[row][col] = new_y
+
+    def set(self, row, col, new_y):
+        self._inform_listeners_and_set(row, col, new_y)
+        self.log_stack[-1].append(row, col, old_y)
+
+    def rewind(self):
+        for row, col, popped_y in reversed(pop(self.log_stack)):
+            self._inform_listeners_and_set(row, col, popped_y)
+        
+
+class StateRowOrCol(object):
+    def __init__(self, state, r0, c0, dr, dc, min_True, max_True):
+        self.state = state
+        self.r0, self.c0 = r0, c0
+        self.dr, self.dc = dr, dc
+        self.min_True, self.max_True = min_True, max_True
+        #
+        self.len = len(state) * dr + len(state[0]) * dc
+        self._n_True = sum(x == True for x in self)
+        self._n_Maybe = sum(x == Maybe for x in self)
+        for i in range(len(self)):
+            r, c = self.row_col(i)
+            self.state.listeners[row][col].append(self._hear)
+
+    def __len__(self):
+        return self.len
+
+    def n_True(self): return self._n_True
+
+    def n_Maybe(self): return self._n_Maybe
+
+    def row_col(self, i):
+        return self.r0 + i * self.dr, self.c0 + i * self.dc
+    
+    def __getitem__(self, x):
+        r, c = self.row_col(x)
+        return self.state[r][c]
+        
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def __setitem__(self, x, new_y):
+        r, c = self.row_col(x)
+        self.state.set(r, c, new_y)
+
+    def _hear(self, old_y, new_y):
+        self.n_True += -(old_y == True) + (new_y == True)
+        self.n_Maybe += -(old_y == Maybe) + (new_y == Maybe)
 
 
 def spell(word, dice, multi=False, just_count=False):
     letters = list(set(word))
-    rows = range(len(dice))
-    cols = range(len(letters))
-    letter_maxes = [sum(c == letter for c in word) for letter in letters]
-    letter_mins = letter_maxes
-    dice_maxes = [1] * len(dice)
-    if len(dice) == len(word):
-        dice_mins = dice_maxes
-    else:
-        dice_mins = [0] * len(dice)
     state = [[(letter in die.faces and Maybe) for letter in letters] for die in dice]
-
+    log_stack = []
+    letter_cols = []
+    for j, letter in enumerate(letters):
+        min_True = max_True = [sum(c == letter for c in word)]
+        letter_cols.append(StateRowOrCol(state, log_stack, 0, j, 0, 1, min_True, max_True))
+    dice_rows = []
+    if len(dice) == len(word):
+        min_True, max_True = 1, 1
+    else:
+        min_True, max_True = 0, 1
+    for i, die in enumerate(dice):
+        dice_rows.append(StateRowOrCol(state, log_stack, i, 0, 1, 0, min_True, max_True))
     spell.n_solutions = 0
     
     class Done(Exception):
@@ -83,38 +149,23 @@ def spell(word, dice, multi=False, just_count=False):
         print
 
 
-    def massage_rows_or_cols(move_fn, p, q):
+    def massage_rows_or_cols(rcs):
         """
-        (p, q) = (1, 0) to scan rows, or (0, 1) to scan columns.
         Scan rows or columns, drawing conclusions that are certain.
         If we're stuck, raise the Stuck exception.
-        Returns two lists of counts: Maybes, and Trues, for each row/col.
         """
-        n_rows_or_cols = len(dice) * p + len(letters) * q
-        n_elements_each = len(dice) * q + len(letters) * p
-        maxes = dice_maxes * p + letter_maxes * q
-        mins = dice_mins * p + letter_mins * q
-        maybes = [0] * n_rows_or_cols
-        trues = [0] * n_rows_or_cols
-        for i, r, c in ((i, i * p, i * q) for i in range(n_rows_or_cols)):
-            for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
-                trues[i] += (state[row][col] == True)
-                maybes[i] += (state[row][col] == Maybe)
-            if trues[i] + maybes[i] < mins[i] or trues[i] > maxes[i]:
+        for rc in rcs:
+            if rc.n_True() + rc.n_Maybe() < rc.min_True or rc.n_True() > rc.max_True:
                 raise Stuck()
 
-            if trues[i] == maxes[i] and maybes[i] > 0:
-                for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
-                    if state[row][col] == Maybe:
-                        move_fn(row, col, False)
-                maybes[i] = 0
-            if maybes[i] > 0 and trues[i] + maybes[i] == mins[i]:
-                for row, col in ((r + j * q, c + j * p) for j in range(n_elements_each)):
-                    if state[row][col] == Maybe:
-                        move_fn(row, col, True)
-                maybes[i] = 0
-                trues[i] = mins[i]
-        return maybes, trues
+            if rc.n_True() == rc.max_True and rc.n_Maybe() > 0:
+                for i in range(len(rc)):
+                    if rc[i] == Maybe:
+                        rc[i] = False
+            if rc.n_Maybe() > 0 and rc.n_True() + rc.n_Maybe() == rc.min_True:
+                for i in range(len(rc)):
+                    if rc[i] == Maybe:
+                        rc[i] = True
 
 
     def spell_more():
@@ -176,5 +227,5 @@ if __name__ == "__main__":
         print n_solutions
     if n_solutions == 0:
         if not args.count:
-            print >>sys.stdout, "No solutions."
+            print >>sys.stderr, "No solutions."
         sys.exit(1)
