@@ -80,8 +80,23 @@ class StateRowOrCol(object):
         self.len = len(state) * dr + len(state[0]) * dc
         self.recount()
 
+    def row_col(self, i):
+        return self.r0 + i * self.dr, self.c0 + i * self.dc
+    
     def __len__(self):
         return self.len
+
+    def __getitem__(self, x):
+        r, c = self.row_col(x)
+        return self.state[r][c]
+        
+    def __setitem__(self, x, new_y):
+        r, c = self.row_col(x)
+        self.state.set(r, c, new_y)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
     def recount(self):
         self._n_True = sum(x == True for x in self)
@@ -93,22 +108,6 @@ class StateRowOrCol(object):
 
     def freedom(self):
         return self.n_Maybe() + self.n_True() - self.min_True
-
-    def row_col(self, i):
-        return self.r0 + i * self.dr, self.c0 + i * self.dc
-    
-    def __getitem__(self, x):
-        r, c = self.row_col(x)
-        return self.state[r][c]
-        
-    def __setitem__(self, x, new_y):
-        r, c = self.row_col(x)
-        self.state.set(r, c, new_y)
-
-    def __iter__(self):
-        for i in range(len(self)):
-            # print "r0=%d, dr=%d,  c0=%d, dc=%d,  i=%d" % (self.r0, self.dr, self.c0, self.dc, i)
-            yield self[i]
 
 
 class Done(Exception):
