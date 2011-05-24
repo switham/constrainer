@@ -3,10 +3,8 @@
 Spell a given word using letter dice.
 """
 
-import random
 import sys
 import argparse
-import collections
 
 
 def parse_args():
@@ -52,22 +50,21 @@ Maybe = Maybies()
 
 
 class State(list):
-    def __init__(self, iterator):
-        for row in iterator:
-            self.append(row)
+    def __init__(self, *args):
+        super(State, self).__init__(*args)
         self.log_stack = []
         self.rows = []
         self.cols = []
 
-    def set(self, row, col, new_y):
+    def set(self, i, j, new_value):
         """ Setting doesn't adjust the rows' and columns' counts. """
-        self.log_stack[-1].append((row, col, self[row][col]))
-        self[row][col] = new_y
+        self.log_stack[-1].append((i, j, self[i][j]))
+        self[i][j] = new_value
 
     def rewind(self):
         """ Rewinding doesn't adjust the rows' and columns' counts. """
-        for row, col, popped_y in reversed(self.log_stack.pop()):
-            self[row][col] = popped_y
+        for i, j, popped_value in reversed(self.log_stack.pop()):
+            self[i][j] = popped_value
         
 
 class StateRowOrCol(object):
@@ -76,38 +73,32 @@ class StateRowOrCol(object):
         self.r0, self.c0 = r0, c0
         self.dr, self.dc = dr, dc
         self.min_True, self.max_True = min_True, max_True
-        #
         self.len = len(state) * dr + len(state[0]) * dc
         self.recount()
 
-    def row_col(self, i):
-        return self.r0 + i * self.dr, self.c0 + i * self.dc
+    def row_col(self, k): return self.r0 + k * self.dr, self.c0 + k * self.dc
     
-    def __len__(self):
-        return self.len
+    def __len__(self): return self.len
 
-    def __getitem__(self, x):
-        r, c = self.row_col(x)
-        return self.state[r][c]
+    def __getitem__(self, k):
+        i, j = self.row_col(k)
+        return self.state[i][j]
         
-    def __setitem__(self, x, new_y):
-        r, c = self.row_col(x)
-        self.state.set(r, c, new_y)
+    def __setitem__(self, k, new_value):
+        i, j = self.row_col(k)
+        self.state.set(i, j, new_value)
 
-    def __iter__(self):
-        for i in range(len(self)):
-            yield self[i]
+    def __iter__(self): return (self[k] for k in range(len(self)))
 
     def recount(self):
-        self._n_True = sum(x == True for x in self)
-        self._n_Maybe = sum(x == Maybe for x in self)
+        self._n_True = sum(value == True for value in self)
+        self._n_Maybe = sum(value == Maybe for value in self)
 
     def n_True(self): return self._n_True
 
     def n_Maybe(self): return self._n_Maybe
 
-    def freedom(self):
-        return self.n_Maybe() + self.n_True() - self.min_True
+    def freedom(self): return self.n_Maybe() + self.n_True() - self.min_True
 
 
 class Done(Exception):
