@@ -1,0 +1,2 @@
+./spell_dice.py -c -m -v $1 |grep "===== pop " |sort -n --key=3 |uniq -c
+./spell_dice.py -c -m -v $1 |grep "===== solution " |sort -n --key=4 |uniq -f 3 -c
