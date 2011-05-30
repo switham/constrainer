@@ -236,19 +236,20 @@ def spell_more(state, multi, report_solution_fn, verbose):
 
     maybeRows = [(i, row) for i, row in enumerate(state.rows) if row.n_Maybe() > 0]
     maybeCols = [(j, col) for j, col in enumerate(state.cols) if col.n_Maybe() > 0]
-    f, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
+    p, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
                       for i, row in maybeRows for j, col in maybeCols
                       if state[i][j] == Maybe
                       for tf in [True, False])
     for tf in [tf, not tf]:
         if verbose:
-            print "try", i, j, tf
+            print "try", len(state.log_stack), i, j, tf, "%f%%" % (100 * p)
             sys.stdout.flush()
         state.set(i, j, tf)
         spell_more(state, multi, report_solution_fn, verbose)
         if verbose:
             print "===== pop", len(state.log_stack), "====="
             sys.stdout.flush()
+        p = 1.0 - p
     state.rewind()
     return
 
