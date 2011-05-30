@@ -47,6 +47,7 @@ class Maybies(object):
         raise TypeError("Can't treat Maybies like booleans.")
 
 Maybe = Maybies()
+NotCalculatedYet = Maybies()
 
 
 class State(list):
@@ -67,6 +68,21 @@ class State(list):
             self[i][j] = popped_value
         
 
+def choose_range(n, j, k):
+    """
+    How many subsets of between j and k out of n things are there?
+    Like sum(choose(n, i) for i in range(j, k + 1)) but faster.
+    """
+    if k < j:  return 0
+    assert 0 <= j and k <= n
+    term = 1
+    t = 0
+    for i in range(k):
+        if i >= j:  t += term
+        term = term * (n - i) / (i + 1)
+    return t + term
+
+
 class StateRowOrCol(object):
     def __init__(self, state, r0, c0, dr, dc, min_True, max_True):
         self.state = state
@@ -74,6 +90,7 @@ class StateRowOrCol(object):
         self.dr, self.dc = dr, dc
         self.min_True, self.max_True = min_True, max_True
         self.len = len(state) * dr + len(state[0]) * dc
+        self._combos = [NotCalculatedYet, NotCalculatedYet]
         self.recount()
 
     def row_col(self, k): return self.r0 + k * self.dr, self.c0 + k * self.dc
@@ -87,6 +104,7 @@ class StateRowOrCol(object):
     def __setitem__(self, k, new_value):
         i, j = self.row_col(k)
         self.state.set(i, j, new_value)
+        self._combos[False] = self._combos[True] = NotCalculatedYet
 
     def __iter__(self): return (self[k] for k in range(len(self)))
 
@@ -98,7 +116,22 @@ class StateRowOrCol(object):
 
     def n_Maybe(self): return self._n_Maybe
 
-    def freedom(self): return self.n_Maybe() + self.n_True() - self.min_True
+    def probability(self, tf):
+        """
+        Guess probability that a solution exists in which a random Maybe is be set to tf.
+        Actually, assume there is exactly ONE solution, and guess the probability
+        that one of the Maybes in this row or column is tf in the solution.
+        """
+        if self._combos[tf] == NotCalculatedYet:
+            # How many ways of filling in would be left if one Maybe were set to True?  To False?
+            assert self.n_Maybe() > 0
+            suppose_Maybe = self.n_Maybe() - 1
+            for b in True, False:
+                suppose_True = self.n_True() + b
+                min_Maybe = max(self.min_True - suppose_True, 0)
+                max_Maybe = min(self.max_True - suppose_True, suppose_Maybe)
+                self._combos[b] = choose_range(suppose_Maybe, min_Maybe, max_Maybe)
+        return float(self._combos[tf]) / (self._combos[tf] + self._combos[not tf])
 
 
 class Done(Exception):
@@ -120,10 +153,13 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
     for i, die in enumerate(dice):
         state.rows.append(StateRowOrCol(state, i, 0, 0, 1, min_True, max_True))
     state.n_solutions = 0
+    state.n_deadends = 0
     
     def report_solution():
         state.n_solutions += 1
-        if verbose: print "===== solution", state.n_solutions, len(state.log_stack), "====="
+        if verbose:
+            print "===== solution", state.n_solutions, len(state.log_stack), "====="
+            sys.stdout.flush()
         if just_count:
             return
 
@@ -138,7 +174,7 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
         spell_more(state, multi, report_solution, verbose)
     except Done:
         pass
-    return state.n_solutions
+    return state.n_solutions, state.n_deadends
 
 
 class Stuck(Exception):
@@ -159,13 +195,17 @@ def massage_rows_or_cols(rcs, verbose):
         if rc.n_True() == rc.max_True and rc.n_Maybe() > 0:
             for i in range(len(rc)):
                 if rc[i] == Maybe:
-                    if verbose: print "inferred", rc.row_col(i), False
+                    if verbose:
+                        print "inferred", rc.row_col(i), False
+                        sys.stdout.flush()
                     rc[i] = False
             rc.recount()
         if rc.n_Maybe() > 0 and rc.n_True() + rc.n_Maybe() == rc.min_True:
             for i in range(len(rc)):
                 if rc[i] == Maybe:
-                    if verbose: print "inferred", rc.row_col(i), True
+                    if verbose:
+                        print "inferred", rc.row_col(i), True
+                        sys.stdout.flush()
                     rc[i] = True
             rc.recount()
 
@@ -180,6 +220,7 @@ def spell_more(state, multi, report_solution_fn, verbose):
             massage_rows_or_cols(state.rows, verbose)
             massage_rows_or_cols(state.cols, verbose)
         except Stuck:
+            state.n_deadends += 1
             state.rewind()
             return
 
@@ -191,16 +232,23 @@ def spell_more(state, multi, report_solution_fn, verbose):
         else:
             raise Done()
 
-    # Now all certain moves have been made above.  Pick the move with the least "freedom".
+    # Now all definite moves have been made above.  Pick the most "probable":
 
-    f, i, j = min((row.freedom() * col.freedom(), i, j)
-                  for i, row in enumerate(state.rows) for j, col in enumerate(state.cols)
-                  if state[i][j] == Maybe)
-    for tf in False, True:
-        if verbose: print "try", i, j, tf
+    maybeRows = [(i, row) for i, row in enumerate(state.rows) if row.n_Maybe() > 0]
+    maybeCols = [(j, col) for j, col in enumerate(state.cols) if col.n_Maybe() > 0]
+    f, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
+                      for i, row in maybeRows for j, col in maybeCols
+                      if state[i][j] == Maybe
+                      for tf in [True, False])
+    for tf in [tf, not tf]:
+        if verbose:
+            print "try", i, j, tf
+            sys.stdout.flush()
         state.set(i, j, tf)
         spell_more(state, multi, report_solution_fn, verbose)
-        if verbose: print "===== pop", len(state.log_stack), "====="
+        if verbose:
+            print "===== pop", len(state.log_stack), "====="
+            sys.stdout.flush()
     state.rewind()
     return
 
@@ -209,10 +257,12 @@ def spell_more(state, multi, report_solution_fn, verbose):
 if __name__ == "__main__":
     args = parse_args()
     dice = [Die(line) for line in open(args.dice)]
-    n_solutions = spell(args.word, dice, args.many, args.count, args.verbose)
+    n_solutions, n_deadends = spell(args.word, dice, args.many, args.count, args.verbose)
     if args.count:
-        print n_solutions
+        print n_solutions, "solutions."
     if n_solutions == 0:
         if not args.count:
             print >>sys.stderr, "No solutions."
+    print n_deadends, "dead ends"
+    if n_solutions == 0:
         sys.exit(1)
