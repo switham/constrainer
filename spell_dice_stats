@@ -1,8 +1,14 @@
-time ./spell_dice.py -c -m -v $1 >/tmp/spell_dice.out
+if [ "$1" = "-f" ]; then
+  f="$1"; shift
+ else
+  f=/tmp/spell_dice.out
+  time ./spell_dice.py -c -m -v $1 >"$f"
+ fi
 echo " "
-grep "===== pop " /tmp/spell_dice.out |sort -n --key=3 |uniq -c
+grep "===== pop " "$f" |sort -n --key=3 |uniq -c
 echo " "
-tail -2 /tmp/spell_dice.out
-echo $(grep try /tmp/spell_dice.out |wc -l) guesses
+tail -2 "$f"
+echo $(grep try "$f" |wc -l) guesses
 echo " "
-grep "===== solution " /tmp/spell_dice.out|sort -n --key=4 |uniq -f 3 -c
+grep "===== solution " "$f"|sort -n --key=4 |uniq -f 3 -c
+echo "$f"
