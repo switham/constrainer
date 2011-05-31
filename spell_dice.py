@@ -242,7 +242,7 @@ def spell_more(state, multi, report_solution_fn, verbose):
                       for tf in [True, False])
     for tf in [tf, not tf]:
         if verbose:
-            print "try", len(state.log_stack), i, j, tf, "%f%%" % (100 * p)
+            print "try", len(state.log_stack), (i, j), tf, "%f%%" % (100 * p)
             sys.stdout.flush()
         state.set(i, j, tf)
         spell_more(state, multi, report_solution_fn, verbose)
