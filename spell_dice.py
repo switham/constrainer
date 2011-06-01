@@ -51,13 +51,14 @@ NotCalculatedYet = Maybies()
 
 
 class StateRow(list):
-    """ list that informs a State when an element is changed """
+    """ A list that informs somebody when an element is about to change. """
     def __init__(self, state, i, *args):
         super(StateRow, self).__init__(*args)
         self.state = state
         self.i = i
 
     def __setitem__(self, j, value):
+        """ Setting doesn't adjust the rows' and columns' counts. """
         self.state.pushitem(self.i, j)
         super(StateRow, self).__setitem__(j, value)
 
@@ -66,6 +67,7 @@ class StateRow(list):
 
 
 class State(list):
+    """ A two-dimensional array with undo. """
     def __init__(self, *args):
         super(State, self).__init__(StateRow(self, i, row) for i, row in enumerate(list(*args)))
         self.log_stack = []
@@ -74,12 +76,9 @@ class State(list):
 
     def depth(self): return len(self.log_stack)
 
-    def changes(self): return len(self.log_stack[-1])
-
     def push(self): self.log_stack.append([])
 
     def pushitem(self, i, j):
-        """ Setting doesn't adjust the rows' and columns' counts. """
         self.log_stack[-1].append((i, j, self[i][j]))
 
     def pop(self):
@@ -104,6 +103,7 @@ def choose_range(n, j, k):
 
 
 class StateRowOrCol(object):
+    """ A mutable 1D view into a 2D State, with True/False/Maybe accounting. """
     def __init__(self, state, r0, c0, dr, dc, min_True, max_True):
         self.state = state
         self.r0, self.c0 = r0, c0
@@ -138,9 +138,9 @@ class StateRowOrCol(object):
 
     def probability(self, tf):
         """
-        Guess probability that a solution exists in which a random Maybe is be set to tf.
-        Actually, assume there is exactly ONE solution, and guess the probability
-        that one of the Maybes in this row or column is tf in the solution.
+        Heuristic "probability" that a solution exists in which a random Maybe is set to tf.
+        Actually, assume there is exactly ONE solution, and give odds that any given Maybe
+        in this row or column is tf in the solution.
         """
         if self._combos[tf] == NotCalculatedYet:
             # How many ways of filling in would be left if one Maybe were set to True?  To False?
@@ -207,38 +207,41 @@ def massage_rows_or_cols(rcs, verbose):
     Does not recount the perpendicular cols/rows.
     If we're stuck, raise the Stuck exception.
     """
+    fresh = False
     for rc in rcs:
         rc.recount()
         if rc.n_True() + rc.n_Maybe() < rc.min_True or rc.n_True() > rc.max_True:
             raise Stuck()
 
         if rc.n_True() == rc.max_True and rc.n_Maybe() > 0:
+            fresh = True
             for i in range(len(rc)):
                 if rc[i] == Maybe:
+                    rc[i] = False
                     if verbose:
                         print "inferred", rc.row_col(i), False
                         sys.stdout.flush()
-                    rc[i] = False
             rc.recount()
         if rc.n_Maybe() > 0 and rc.n_True() + rc.n_Maybe() == rc.min_True:
+            fresh = True
             for i in range(len(rc)):
                 if rc[i] == Maybe:
+                    rc[i] = True
                     if verbose:
                         print "inferred", rc.row_col(i), True
                         sys.stdout.flush()
-                    rc[i] = True
             rc.recount()
+    return fresh
 
 
 def spell_more(state, multi, report_solution_fn, verbose):
     state.push()
 
-    prev_changes = -1
-    while state.changes() > prev_changes:
-        prev_changes = state.changes()
+    fresh = True
+    while fresh:
         try:
-            massage_rows_or_cols(state.rows, verbose)
-            massage_rows_or_cols(state.cols, verbose)
+            fresh = massage_rows_or_cols(state.rows, verbose)
+            fresh |= massage_rows_or_cols(state.cols, verbose)  # "or" would short-circuit.
         except Stuck:
             state.n_deadends += 1
             state.pop()
