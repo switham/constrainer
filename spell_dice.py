@@ -50,22 +50,42 @@ Maybe = Maybies()
 NotCalculatedYet = Maybies()
 
 
+class StateRow(list):
+    """ list that informs a State when an element is changed """
+    def __init__(self, state, i, *args):
+        super(StateRow, self).__init__(*args)
+        self.state = state
+        self.i = i
+
+    def __setitem__(self, j, value):
+        self.state.pushitem(self.i, j)
+        super(StateRow, self).__setitem__(j, value)
+
+    def just_set(self, j, value):
+        super(StateRow, self).__setitem__(j, value)
+
+
 class State(list):
     def __init__(self, *args):
-        super(State, self).__init__(*args)
+        super(State, self).__init__(StateRow(self, i, row) for i, row in enumerate(list(*args)))
         self.log_stack = []
         self.rows = []
         self.cols = []
 
-    def set(self, i, j, new_value):
+    def depth(self): return len(self.log_stack)
+
+    def changes(self): return len(self.log_stack[-1])
+
+    def push(self): self.log_stack.append([])
+
+    def pushitem(self, i, j):
         """ Setting doesn't adjust the rows' and columns' counts. """
         self.log_stack[-1].append((i, j, self[i][j]))
-        self[i][j] = new_value
 
-    def rewind(self):
-        """ Rewinding doesn't adjust the rows' and columns' counts. """
+    def pop(self):
+        """ Poping doesn't adjust the rows' and columns' counts. """
         for i, j, popped_value in reversed(self.log_stack.pop()):
-            self[i][j] = popped_value
+            self[i].just_set(j, popped_value)
         
 
 def choose_range(n, j, k):
@@ -103,7 +123,7 @@ class StateRowOrCol(object):
         
     def __setitem__(self, k, new_value):
         i, j = self.row_col(k)
-        self.state.set(i, j, new_value)
+        self.state[i][j] = new_value
         self._combos[False] = self._combos[True] = NotCalculatedYet
 
     def __iter__(self): return (self[k] for k in range(len(self)))
@@ -158,7 +178,7 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
     def report_solution():
         state.n_solutions += 1
         if verbose:
-            print "===== solution", state.n_solutions, len(state.log_stack), "====="
+            print "===== solution", state.n_solutions, state.depth(), "====="
             sys.stdout.flush()
         if just_count:
             return
@@ -211,23 +231,23 @@ def massage_rows_or_cols(rcs, verbose):
 
 
 def spell_more(state, multi, report_solution_fn, verbose):
-    state.log_stack.append([])
+    state.push()
 
-    prev_len = -1
-    while len(state.log_stack[-1]) > prev_len:
-        prev_len = len(state.log_stack[-1])
+    prev_changes = -1
+    while state.changes() > prev_changes:
+        prev_changes = state.changes()
         try:
             massage_rows_or_cols(state.rows, verbose)
             massage_rows_or_cols(state.cols, verbose)
         except Stuck:
             state.n_deadends += 1
-            state.rewind()
+            state.pop()
             return
 
     if sum(row.n_Maybe() for row in state.rows) == 0:
         report_solution_fn()
         if multi:
-            state.rewind()
+            state.pop()
             return
         else:
             raise Done()
@@ -242,15 +262,15 @@ def spell_more(state, multi, report_solution_fn, verbose):
                       for tf in [True, False])
     for tf in [tf, not tf]:
         if verbose:
-            print "try", len(state.log_stack), (i, j), tf, "%f%%" % (100 * p)
+            print "try", state.depth(), (i, j), tf, "%f%%" % (100 * p)
             sys.stdout.flush()
-        state.set(i, j, tf)
+        state[i][j] = tf
         spell_more(state, multi, report_solution_fn, verbose)
         if verbose:
-            print "===== pop", len(state.log_stack), "====="
+            print "===== pop", state.depth(), "====="
             sys.stdout.flush()
         p = 1.0 - p
-    state.rewind()
+    state.pop()
     return
 
 
