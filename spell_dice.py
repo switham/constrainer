@@ -71,6 +71,7 @@ class State(list):
     state.pop()      # pops a stack frame and undoes its changes in reverse.
     """
     def __init__(self, *args):
+        """ Initialize like you would a 2D array, i.e. with a sequence of sequences. """
         self.log_stack = []
         super(State, self).__init__(StateRow(self.log_stack, row) for row in list(*args))
 
