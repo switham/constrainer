@@ -67,8 +67,8 @@ class State(list):
     Classes State and StateRow together implement a two-dimensional array with undo.
     state.push()     # pushes a new empty stack frame for recording undo info.
     y = state[i][j]  # accessed like a regular 2D array.
-    state[i][j] = x  # first saves a restorer for the current value, into the current frame.
-    state.pop()      # pops a stack frame and runs its restorers in reverse order.
+    state[i][j] = x  # first magically records how to undo, into the current frame.
+    state.pop()      # pops a stack frame and undoes its changes in reverse.
     """
     def __init__(self, *args):
         self.log_stack = []
