@@ -51,40 +51,36 @@ NotCalculatedYet = Maybies()
 
 
 class StateRow(list):
-    """ A list that informs somebody when an element is about to change. """
-    def __init__(self, state, i, *args):
+    """ A list that saves state before changing an element.  See class State. """
+    def __init__(self, log_stack, *args):
         super(StateRow, self).__init__(*args)
-        self.state = state
-        self.i = i
+        self.log_stack = log_stack
 
-    def __setitem__(self, j, value):
-        """ Setting doesn't adjust the rows' and columns' counts. """
-        self.state.pushitem(self.i, j)
-        super(StateRow, self).__setitem__(j, value)
-
-    def just_set(self, j, value):
-        super(StateRow, self).__setitem__(j, value)
+    def __setitem__(self, j, newvalue):
+        oldvalue = self[j]
+        self.log_stack[-1].append(lambda: super(StateRow, self).__setitem__(j, oldvalue))
+        super(StateRow, self).__setitem__(j, newvalue)
 
 
 class State(list):
-    """ A two-dimensional array with undo. """
+    """
+    Classes State and StateRow together implement a two-dimensional array with undo.
+    state.push()     # pushes a new empty stack frame for recording undo info.
+    y = state[i][j]  # accessed like a regular 2D array.
+    state[i][j] = x  # first saves a restorer for the current value, into the current frame.
+    state.pop()      # pops a stack frame and runs its restorers in reverse order.
+    """
     def __init__(self, *args):
-        super(State, self).__init__(StateRow(self, i, row) for i, row in enumerate(list(*args)))
         self.log_stack = []
-        self.rows = []
-        self.cols = []
+        super(State, self).__init__(StateRow(self.log_stack, row) for row in list(*args))
 
     def depth(self): return len(self.log_stack)
 
     def push(self): self.log_stack.append([])
 
-    def pushitem(self, i, j):
-        self.log_stack[-1].append((i, j, self[i][j]))
-
     def pop(self):
-        """ Poping doesn't adjust the rows' and columns' counts. """
-        for i, j, popped_value in reversed(self.log_stack.pop()):
-            self[i].just_set(j, popped_value)
+        for popper in reversed(self.log_stack.pop()):
+            popper()
         
 
 def choose_range(n, j, k):
@@ -102,8 +98,8 @@ def choose_range(n, j, k):
     return t + term
 
 
-class StateRowOrCol(object):
-    """ A mutable 1D view into a 2D State, with True/False/Maybe accounting. """
+class StateView(object):
+    """ A mutable 1D view into a 2D State, with True/False/Maybe constraints accounting. """
     def __init__(self, state, r0, c0, dr, dc, min_True, max_True):
         self.state = state
         self.r0, self.c0 = r0, c0
@@ -164,14 +160,14 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
     state.cols = []
     for j, letter in enumerate(letters):
         min_True = max_True = sum(c == letter for c in word)
-        state.cols.append(StateRowOrCol(state, 0, j, 1, 0, min_True, max_True))
+        state.cols.append(StateView(state, 0, j, 1, 0, min_True, max_True))
     if len(dice) == len(word):
         min_True, max_True = 1, 1
     else:
         min_True, max_True = 0, 1
     state.rows = []
     for i, die in enumerate(dice):
-        state.rows.append(StateRowOrCol(state, i, 0, 0, 1, min_True, max_True))
+        state.rows.append(StateView(state, i, 0, 0, 1, min_True, max_True))
     state.n_solutions = 0
     state.n_deadends = 0
     
