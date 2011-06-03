@@ -217,12 +217,13 @@ def massage_rows_and_cols(rcs, verbose):
         if rc.n_True() + rc.n_Maybe() < rc.min_True or rc.n_True() > rc.max_True:
             raise Stuck()
 
-        if rc.n_True() == rc.max_True and rc.n_Maybe() > 0:
-            fresh = True
-            rc.set_Maybes(False, verbose)
-        if rc.n_True() + rc.n_Maybe() == rc.min_True and rc.n_Maybe() > 0:
-            fresh = True
-            rc.set_Maybes(True, verbose)
+        if rc.n_Maybe() > 0:
+            if rc.n_True() == rc.max_True:
+                fresh = True
+                rc.set_Maybes(False, verbose)
+            elif rc.n_True() + rc.n_Maybe() == rc.min_True:
+                fresh = True
+                rc.set_Maybes(True, verbose)
     return fresh
 
 
