@@ -133,6 +133,14 @@ class StateView(object):
 
     def n_Maybe(self): return self._n_Maybe
 
+    def set_Maybes(self, tf, verbose=False):
+        for i in range(len(self)):
+            if self[i] == Maybe:
+                self[i] = tf
+                if verbose:
+                    print "inferred", self.row_col(i), tf
+                    sys.stdout.flush()
+                    
     def probability(self, tf):
         """
         Heuristic "probability" that a solution exists in which a random Maybe is set to tf.
@@ -198,10 +206,9 @@ class Stuck(Exception):
     pass
 
 
-def massage_rows_or_cols(rcs, verbose):
+def massage_rows_and_cols(rcs, verbose):
     """
-    Scan rows or columns, drawing conclusions that are certain.
-    Does not recount the perpendicular cols/rows.
+    Scan rows and/or columns, drawing any conclusions that are certain.
     If we're stuck, raise the Stuck exception.
     """
     fresh = False
@@ -212,33 +219,29 @@ def massage_rows_or_cols(rcs, verbose):
 
         if rc.n_True() == rc.max_True and rc.n_Maybe() > 0:
             fresh = True
-            for i in range(len(rc)):
-                if rc[i] == Maybe:
-                    rc[i] = False
-                    if verbose:
-                        print "inferred", rc.row_col(i), False
-                        sys.stdout.flush()
-            rc.recount()
-        if rc.n_Maybe() > 0 and rc.n_True() + rc.n_Maybe() == rc.min_True:
+            rc.set_Maybes(False, verbose)
+        if rc.n_True() + rc.n_Maybe() == rc.min_True and rc.n_Maybe() > 0:
             fresh = True
-            for i in range(len(rc)):
-                if rc[i] == Maybe:
-                    rc[i] = True
-                    if verbose:
-                        print "inferred", rc.row_col(i), True
-                        sys.stdout.flush()
-            rc.recount()
+            rc.set_Maybes(True, verbose)
     return fresh
+
+
+def most_probable_move(state):
+    maybeRows = [(i, row) for i, row in enumerate(state.rows) if row.n_Maybe() > 0]
+    maybeCols = [(j, col) for j, col in enumerate(state.cols) if col.n_Maybe() > 0]
+    p, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
+                      for i, row in maybeRows for j, col in maybeCols
+                      if state[i][j] == Maybe
+                      for tf in [True, False])
+    return p, i, j, tf
 
 
 def spell_more(state, multi, report_solution_fn, verbose):
     state.push()
-
     fresh = True
     while fresh:
         try:
-            fresh = massage_rows_or_cols(state.rows, verbose)
-            fresh |= massage_rows_or_cols(state.cols, verbose)  # "or" would short-circuit.
+            fresh = massage_rows_and_cols(state.rows + state.cols, verbose)
         except Stuck:
             state.n_deadends += 1
             state.pop()
@@ -254,12 +257,7 @@ def spell_more(state, multi, report_solution_fn, verbose):
 
     # Now all definite moves have been made above.  Pick the most "probable":
 
-    maybeRows = [(i, row) for i, row in enumerate(state.rows) if row.n_Maybe() > 0]
-    maybeCols = [(j, col) for j, col in enumerate(state.cols) if col.n_Maybe() > 0]
-    p, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
-                      for i, row in maybeRows for j, col in maybeCols
-                      if state[i][j] == Maybe
-                      for tf in [True, False])
+    p, i, j, tf = most_probable_move(state)
     for tf in [tf, not tf]:
         if verbose:
             print "try", state.depth(), (i, j), tf, "%f%%" % (100 * p)
