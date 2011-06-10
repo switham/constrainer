@@ -82,6 +82,7 @@ class State(list):
     def pop(self):
         for popper in reversed(self.log_stack.pop()):
             popper()
+        return self.depth()
         
 
 def choose_range(n, j, k):
@@ -159,10 +160,6 @@ class StateView(object):
         return float(self._combos[tf]) / (self._combos[tf] + self._combos[not tf])
 
 
-class Done(Exception):
-    pass
-
-
 def spell(word, dice, multi=False, just_count=False, verbose=False):
     letters = list(set(word))
     state = State([(letter in die.faces and Maybe) for letter in letters] for die in dice)
@@ -177,16 +174,20 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
     state.rows = []
     for i, die in enumerate(dice):
         state.rows.append(StateView(state, i, 0, 0, 1, min_True, max_True))
-    state.n_solutions = 0
-    state.n_deadends = 0
-    
-    def report_solution():
-        state.n_solutions += 1
+        
+    n_solutions = 0
+    n_deadends = 0
+    for tf in generate_spellings(state, verbose):
+        if not tf:
+            n_deadends += 1
+            continue
+
+        n_solutions += 1
         if verbose:
-            print "===== solution", state.n_solutions, state.depth(), "====="
+            print "===== solution", n_solutions, state.depth(), "====="
             sys.stdout.flush()
         if just_count:
-            return
+            continue
 
         letter_dice = dict( (letter, [die for i, die in enumerate(dice) if state[i][j] == True])
                            for j, letter in enumerate(letters))
@@ -194,37 +195,31 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
             die = letter_dice[letter].pop()
             print letter, die
         print
+        if not multi:
+            break
         
-    try:
-        spell_more(state, multi, report_solution, verbose)
-    except Done:
-        pass
-    return state.n_solutions, state.n_deadends
-
-
-class Stuck(Exception):
-    pass
+    return n_solutions, n_deadends
 
 
 def massage_rows_and_cols(rcs, verbose):
     """
     Scan rows and/or columns, drawing any conclusions that are certain.
-    If we're stuck, raise the Stuck exception.
+    Return whether-stuck, whether-quiet
     """
-    fresh = False
+    quiet = True
     for rc in rcs:
         rc.recount()
         if rc.n_True() + rc.n_Maybe() < rc.min_True or rc.n_True() > rc.max_True:
-            raise Stuck()
+            return True, True
 
         if rc.n_Maybe() > 0:
             if rc.n_True() == rc.max_True:
-                fresh = True
+                quiet = False
                 rc.set_Maybes(False, verbose)
             elif rc.n_True() + rc.n_Maybe() == rc.min_True:
-                fresh = True
+                quiet = False
                 rc.set_Maybes(True, verbose)
-    return fresh
+    return False, quiet
 
 
 def most_probable_move(state):
@@ -237,41 +232,32 @@ def most_probable_move(state):
     return p, i, j, tf
 
 
-def spell_more(state, multi, report_solution_fn, verbose):
+def generate_spellings(state, verbose):
     state.push()
-    fresh = True
-    while fresh:
-        try:
-            fresh = massage_rows_and_cols(state.rows + state.cols, verbose)
-        except Stuck:
-            state.n_deadends += 1
-            state.pop()
-            return
+    while state.depth() > 0:
+        quiet = False
+        while not quiet:
+            stuck, quiet = massage_rows_and_cols(state.rows + state.cols, verbose)
+        if stuck:
+            yield False
 
-    if sum(row.n_Maybe() for row in state.rows) == 0:
-        report_solution_fn()
-        if multi:
-            state.pop()
-            return
+        elif sum(row.n_Maybe() for row in state.rows) == 0:
+            yield True
+
         else:
-            raise Done()
-
-    # Now all definite moves have been made above.  Pick the most "probable":
-
-    p, i, j, tf = most_probable_move(state)
-    for tf in [tf, not tf]:
-        if verbose:
-            print "try", state.depth(), (i, j), tf, "%f%%" % (100 * p)
-            sys.stdout.flush()
-        state[i][j] = tf
-        spell_more(state, multi, report_solution_fn, verbose)
+            p, i, j, tf = most_probable_move(state)
+            state[i][j] = not tf
+            state.push()
+            if verbose:
+                print "try", state.depth(), (i, j), tf, "%f%%" % (100 * p)
+                sys.stdout.flush()
+            state[i][j] = tf
+            continue
+        
+        state.pop()
         if verbose:
             print "===== pop", state.depth(), "====="
             sys.stdout.flush()
-        p = 1.0 - p
-    state.pop()
-    return
-
 
 
 if __name__ == "__main__":
