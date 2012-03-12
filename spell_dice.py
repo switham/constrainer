@@ -51,29 +51,33 @@ NotCalculatedYet = Maybies()
 
 
 class StateRow(list):
-    """ A list that saves state before changing an element.  See class State. """
-    def __init__(self, log_stack, *args):
-        super(StateRow, self).__init__(*args)
+    """
+    A list that saves state before changing an element.  See class State.
+    """
+    def __init__(self, log_stack, arg):
+        self.list = super(StateRow, self)
+        self.list.__init__(arg)
         self.log_stack = log_stack
 
     def __setitem__(self, j, newvalue):
         oldvalue = self[j]
-        self.log_stack[-1].append(lambda: super(StateRow, self).__setitem__(j, oldvalue))
-        super(StateRow, self).__setitem__(j, newvalue)
+        self.log_stack[-1].append(lambda: self.list.__setitem__(j, oldvalue))
+        self.list.__setitem__(j, newvalue)
 
 
 class State(list):
     """
-    Classes State and StateRow together implement a two-dimensional array with undo.
+    Classes State and StateRow together implement a 2D array with undo.
     state.push()     # pushes a new empty stack frame for recording undo info.
     y = state[i][j]  # accessed like a regular 2D array.
-    state[i][j] = x  # first magically records how to undo, into the current frame.
+    state[i][j] = x  # first records how to undo, into the current frame.
     state.pop()      # pops a stack frame and undoes its changes in reverse.
     """
-    def __init__(self, *args):
-        """ Initialize like you would a 2D array, i.e. with a sequence of sequences. """
+    def __init__(self, arg):
+        """ Initialize with a sequence of sequences. """
+        self.list = super(State, self)
         self.log_stack = []
-        super(State, self).__init__(StateRow(self.log_stack, row) for row in list(*args))
+        self.list.__init__(StateRow(self.log_stack, row) for row in arg)
 
     def depth(self): return len(self.log_stack)
 
@@ -101,7 +105,10 @@ def choose_range(n, j, k):
 
 
 class StateView(object):
-    """ A mutable 1D view into a 2D State, with True/False/Maybe constraints accounting. """
+    """
+    A mutable 1D view into a 2D State,
+    with True/False/Maybe constraints accounting.
+    """
     def __init__(self, state, r0, c0, dr, dc, min_True, max_True):
         self.state = state
         self.r0, self.c0 = r0, c0
@@ -144,25 +151,29 @@ class StateView(object):
                     
     def probability(self, tf):
         """
-        Heuristic "probability" that a solution exists in which a random Maybe is set to tf.
-        Actually, assume there is exactly ONE solution, and give odds that any given Maybe
-        in this row or column is tf in the solution.
+        Heuristic "probability" that a solution exists in which a random Maybe
+        is set to tf.  Actually, assume there is exactly ONE solution, and
+        give odds that any given Maybe in this row or column is tf in the
+        solution.
         """
         if self._combos[tf] == NotCalculatedYet:
-            # How many ways of filling in would be left if one Maybe were set to True?  To False?
+            # How many ways of filling in would be left
+            # if one Maybe were set to True?  To False?
             assert self.n_Maybe() > 0
-            suppose_Maybe = self.n_Maybe() - 1
+            m_Maybe = self.n_Maybe() - 1
             for b in True, False:
                 suppose_True = self.n_True() + b
                 min_Maybe = max(self.min_True - suppose_True, 0)
-                max_Maybe = min(self.max_True - suppose_True, suppose_Maybe)
-                self._combos[b] = choose_range(suppose_Maybe, min_Maybe, max_Maybe)
-        return float(self._combos[tf]) / (self._combos[tf] + self._combos[not tf])
+                max_Maybe = min(self.max_True - suppose_True, m_Maybe)
+                self._combos[b] = choose_range(m_Maybe, min_Maybe, max_Maybe)
+        ctf, cntf = self._combos[tf], self._combos[not tf]
+        return float(ctf) / (ctf + cntf)
 
 
 def spell(word, dice, multi=False, just_count=False, verbose=False):
     letters = list(set(word))
-    state = State([(letter in die.faces and Maybe) for letter in letters] for die in dice)
+    state = State([(letter in die.faces and Maybe) for letter in letters]
+                  for die in dice)
     state.cols = []
     for j, letter in enumerate(letters):
         min_True = max_True = sum(c == letter for c in word)
@@ -189,7 +200,8 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
         if just_count:
             continue
 
-        letter_dice = dict( (letter, [die for i, die in enumerate(dice) if state[i][j] == True])
+        letter_dice = dict( (letter, [die for i, die in enumerate(dice)
+                                          if state[i][j] == True])
                            for j, letter in enumerate(letters))
         for letter in word:
             die = letter_dice[letter].pop()
@@ -209,7 +221,8 @@ def massage_rows_and_cols(rcs, verbose):
     quiet = True
     for rc in rcs:
         rc.recount()
-        if rc.n_True() + rc.n_Maybe() < rc.min_True or rc.n_True() > rc.max_True:
+        if rc.n_True() + rc.n_Maybe() < rc.min_True \
+                or rc.n_True() > rc.max_True:
             return True, True
 
         if rc.n_Maybe() > 0:
@@ -223,8 +236,10 @@ def massage_rows_and_cols(rcs, verbose):
 
 
 def most_probable_move(state):
-    maybeRows = [(i, row) for i, row in enumerate(state.rows) if row.n_Maybe() > 0]
-    maybeCols = [(j, col) for j, col in enumerate(state.cols) if col.n_Maybe() > 0]
+    maybeRows = [(i, row) for i, row in enumerate(state.rows)
+                          if row.n_Maybe() > 0]
+    maybeCols = [(j, col) for j, col in enumerate(state.cols)
+                          if col.n_Maybe() > 0]
     p, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
                       for i, row in maybeRows for j, col in maybeCols
                       if state[i][j] == Maybe
@@ -237,7 +252,8 @@ def generate_spellings(state, verbose):
     while state.depth() > 0:
         quiet = False
         while not quiet:
-            stuck, quiet = massage_rows_and_cols(state.rows + state.cols, verbose)
+            stuck, quiet = massage_rows_and_cols(state.rows + state.cols,
+                                                 verbose)
         if stuck:
             yield False
 
@@ -246,8 +262,11 @@ def generate_spellings(state, verbose):
 
         else:
             p, i, j, tf = most_probable_move(state)
+            # Here, push the other choice, so that if and when we
+            # come back, we'll take the remaining alternative to tf.
             state[i][j] = not tf
             state.push()
+            
             if verbose:
                 print "try", state.depth(), (i, j), tf, "%f%%" % (100 * p)
                 sys.stdout.flush()
