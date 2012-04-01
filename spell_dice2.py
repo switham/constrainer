@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+"""
+Spell a given word using letter dice.
+This time using constrainer.py instead of state2D.py.
+"""
+
+import sys
+import argparse
+
+from constrainer import *
+from maybies import *
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dice", metavar="file",
+        type=str, default="kitchen_dice.sort",
+        help="name of file of descriptions of dice ")
+    parser.add_argument("--many", "--multi", "-m",
+        action="store_true",
+        help="generate as many solutions as possible, not just one")
+    parser.add_argument("--count", "-c",
+        action="store_true",
+        help="just output a count of the number of solutions found")
+    parser.add_argument("--verbose", "-v",
+        action="store_true",
+        help="show search progress")
+    parser.add_argument("word",
+        type=str, help="word to spell out")
+    return parser.parse_args()
+
+
+class Die(object):
+    def __init__(self, line):
+        parts = line.rstrip().split(None, 1)
+        self.faces = parts[0]
+        self.comment = (parts[1:] or [""])[0]
+
+    def __str__(self):
+        return self.faces + " " + self.comment
+
+    def __repr__(self):
+        return "Die(%r)" % str(self)
+
+
+def spell(word, dice, multi=False, just_count=False, verbose=False):
+    state = State(verbose=verbose)
+    letters = list(set(word))
+    
+    letter_cers = {}
+    for letter in letters:
+        # There are exactly as many dice showing a letter
+        # as appearances of the letter in the word.
+        min_True = max_True = sum(c == letter for c in word)
+        letter_cers[letter] = BoolCer(state, min_True=min_True,
+                                             max_True=max_True, letter=letter)
+
+    if len(dice) == len(word):
+        # If there are just enough dice, each die is used exactly once.
+        min_True, max_True = 1, 1
+    elif len(dice) > len(word):
+        # more than enough dice, each die is either not used or used once.
+        min_True, max_True = 0, 1
+    else:
+        raise Exception("Not enough dice to spell the word!")
+        
+    die_cers = dict( (die, BoolCer(state, min_True=min_True,
+                                          max_True=max_True, die=die))
+                     for die in dice)
+    for letter in letters:
+        for die in dice:
+            # The basic variable says: this die is used to show this letter.
+            die_shows_letter = BoolCee(state, die=die, letter=letter)
+            letter_cers[letter].constrain(die_shows_letter)
+            die_cers[die].constrain(die_shows_letter)
+            if letter not in die.faces:
+                die_shows_letter.set(False)
+        
+    n_solutions = 0
+    n_deadends = 0
+    for is_solution in state.generate_leaves(verbose):
+        if not is_solution:
+            n_deadends += 1
+            continue
+
+        n_solutions += 1
+        if verbose:
+            print "===== solution", n_solutions, state.depth(), "====="
+            sys.stdout.flush()
+        if just_count:
+            continue
+
+        # Show a solution.
+        # For each letter, make a list of dice that are showing it.
+        letter_dice = dict( (letter, []) for letter in letters)
+        for letter in letters:
+            for cee in letter_cers[letter].cees:
+                if cee.value:
+                    letter_dice[letter].append(cee.die)
+        # Remove dice from their lists as you use them to spell:
+        for letter in word:
+            die = letter_dice[letter].pop()
+            print letter, die
+        print
+        if not multi:
+            break
+        
+    return n_solutions, n_deadends
+
+
+def most_probable_move(state):
+    maybeRows = [(i, row) for i, row in enumerate(state.rows)
+                          if row.n_Maybe() > 0]
+    maybeCols = [(j, col) for j, col in enumerate(state.cols)
+                          if col.n_Maybe() > 0]
+    p, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
+                      for i, row in maybeRows for j, col in maybeCols
+                      if state[i][j] == Maybe
+                      for tf in [True, False])
+    return p, i, j, tf
+
+
+def generate_spellings(state, verbose):
+    state.push()
+    while state.depth() > 0:
+        quiet = False
+        while not quiet:
+            stuck, quiet = massage_rows_and_cols(state.rows + state.cols,
+                                                 verbose)
+        if stuck:
+            yield False
+            # then fall down to the pop below.
+
+        elif sum(row.n_Maybe() for row in state.rows) == 0:
+            yield True
+            # then fall down to the pop below.
+
+        else:
+            p, i, j, tf = most_probable_move(state)
+            # Here, push the other choice, so that if and when we
+            # come back, we'll take the remaining alternative to tf.
+            state[i][j] = not tf
+            state.push()
+            
+            if verbose:
+                print "try", state.depth(), (i, j), tf, "%f%%" % (100 * p)
+                sys.stdout.flush()
+            state[i][j] = tf
+            continue
+        
+        state.pop()
+        if verbose:
+            print "===== pop", state.depth(), "====="
+            sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    dice = [Die(line) for line in open(args.dice)]
+    n_solutions, n_deadends = spell(args.word, dice,
+                                    args.many, args.count, args.verbose)
+    if args.count:
+        print n_solutions, "solutions."
+    if n_solutions == 0:
+        if not args.count:
+            print >>sys.stderr, "No solutions."
+    print n_deadends, "dead ends"
+    if n_solutions == 0:
+        sys.exit(1)
