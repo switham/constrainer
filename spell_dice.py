@@ -6,7 +6,8 @@ Spell a given word using letter dice.
 import sys
 import argparse
 
-from constraints import *
+from state2D import *
+from maybies import *
 
 
 def parse_args():
@@ -43,7 +44,8 @@ class Die(object):
 
 def spell(word, dice, multi=False, just_count=False, verbose=False):
     letters = list(set(word))
-    state = State([(letter in die.faces and Maybe) for letter in letters]
+    state = State2D([(Maybe if letter in die.faces else False)
+                   for letter in letters]
                   for die in dice)
     state.cols = []
     for j, letter in enumerate(letters):
@@ -153,7 +155,8 @@ def generate_spellings(state, verbose):
 if __name__ == "__main__":
     args = parse_args()
     dice = [Die(line) for line in open(args.dice)]
-    n_solutions, n_deadends = spell(args.word, dice, args.many, args.count, args.verbose)
+    n_solutions, n_deadends = spell(args.word, dice,
+                                    args.many, args.count, args.verbose)
     if args.count:
         print n_solutions, "solutions."
     if n_solutions == 0:
