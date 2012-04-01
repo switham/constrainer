@@ -129,9 +129,11 @@ def generate_spellings(state, verbose):
                                                  verbose)
         if stuck:
             yield False
+            # then fall down to the pop below.
 
         elif sum(row.n_Maybe() for row in state.rows) == 0:
             yield True
+            # then fall down to the pop below.
 
         else:
             p, i, j, tf = most_probable_move(state)
