@@ -108,52 +108,6 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
     return n_solutions, n_deadends
 
 
-def most_probable_move(state):
-    maybeRows = [(i, row) for i, row in enumerate(state.rows)
-                          if row.n_Maybe() > 0]
-    maybeCols = [(j, col) for j, col in enumerate(state.cols)
-                          if col.n_Maybe() > 0]
-    p, i, j, tf = max((row.probability(tf) * col.probability(tf), i, j, tf)
-                      for i, row in maybeRows for j, col in maybeCols
-                      if state[i][j] == Maybe
-                      for tf in [True, False])
-    return p, i, j, tf
-
-
-def generate_spellings(state, verbose):
-    state.push()
-    while state.depth() > 0:
-        quiet = False
-        while not quiet:
-            stuck, quiet = massage_rows_and_cols(state.rows + state.cols,
-                                                 verbose)
-        if stuck:
-            yield False
-            # then fall down to the pop below.
-
-        elif sum(row.n_Maybe() for row in state.rows) == 0:
-            yield True
-            # then fall down to the pop below.
-
-        else:
-            p, i, j, tf = most_probable_move(state)
-            # Here, push the other choice, so that if and when we
-            # come back, we'll take the remaining alternative to tf.
-            state[i][j] = not tf
-            state.push()
-            
-            if verbose:
-                print "try", state.depth(), (i, j), tf, "%f%%" % (100 * p)
-                sys.stdout.flush()
-            state[i][j] = tf
-            continue
-        
-        state.pop()
-        if verbose:
-            print "===== pop", state.depth(), "====="
-            sys.stdout.flush()
-
-
 if __name__ == "__main__":
     args = parse_args()
     dice = [Die(line) for line in open(args.dice)]
