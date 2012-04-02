@@ -45,8 +45,8 @@ class Die(object):
 
 def spell(word, dice, multi=False, just_count=False, verbose=False):
     state = State(verbose=verbose)
-    letters = list(set(word))
     
+    letters = list(set(word))
     letter_cers = {}
     for letter in letters:
         # There are exactly as many dice showing a letter
@@ -55,12 +55,21 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
         letter_cers[letter] = BoolCer(state, min_True=min_True,
                                              max_True=max_True, letter=letter)
 
+    for i, die in enumerate(dice):
+        if not any(letter in die.faces for letter in letters):
+            print "Die", die, "is not usable."
+            dice.pop(i)
     if len(dice) == len(word):
         # If there are just enough dice, each die is used exactly once.
         min_True, max_True = 1, 1
     elif len(dice) > len(word):
-        # more than enough dice, each die is either not used or used once.
+        # If more than enough dice, each die is either not used or used once.
         min_True, max_True = 0, 1
+        # (Hmm, this means I could have a cee per die meaning "not used,"
+        # and a constraint saying len(word) dice are used.  Then how do I
+        # constrain things so that, if a die is used, it's used in at least
+        # one place?  Oh of course: exactly one of: "not used," "used for this,"
+        # "used for that," etc.)
     else:
         raise Exception("Not enough dice to spell the word!")
         
