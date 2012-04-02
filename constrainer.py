@@ -27,10 +27,13 @@ class State(object):
             print "depth", self.depth()
 
     def pop(self):
-        # Return True if we didn't hit bottom and something was popped.
+        """
+        Pop and undo one level of stack and return True,
+        or return False if we hit bottom.
+        """
         if len(self.log_stack) > 1:
             for cee, value_to_restore in reversed(self.log_stack.pop()):
-                cee.reset(value_to_restore)
+                cee.raw_set(value_to_restore)
             return True
         
         else:
@@ -100,9 +103,12 @@ class State(object):
                     print "guess", cee.die, cee.letter, value
                 assert cee.value == Maybe, "You can only guess about Maybies."
                 assert value != Maybe, "Must guess True or False, not Maybe."
-                # When we pop back here, take the opposite guess.
-                self.log_stack[-1].append( (cee, not value) )
-                self.push()
+                # This set() pushes the Maybe and sets the alternative.
+                # Pop through here untakes both alternatives and their context.
+                cee.set(not value)
+                self.push()  # -------- the stack frame boundary --------
+                # This set() pushes the alternative and sets the guess.
+                # Pop through here tries the alternative.
                 cee.set(value)
                 continue
 
@@ -111,8 +117,9 @@ class State(object):
         
     
 class BoolCee(object):
-    """ A cee is a True/False/Maybe variable or slot, constrained by cers. """
-
+    """
+    A constrainee is a True/False/Maybe variable or slot, constrained by cers.
+    """
     def __init__(self, state, **kwargs):
         self.state = state
         for kw in kwargs:
@@ -130,9 +137,16 @@ class BoolCee(object):
         cer.constrain(self)
 
     def set(self, value):
-        """ Set and push.  Return False if a contradiction results. """
+        """ Push, then set.  Return False if a contradiction results. """
+        self.state.log_stack[-1].append( (self, self.value) )
+        return self.raw_set(value)
+
+    def raw_set(self, value):
+        """
+        Set without push.  Do accounting.  Used after both push and pop.
+        Return False if a contradiction results.
+        """
         prev_value = self.value
-        self.state.log_stack[-1].append( (self, prev_value) )
         self.value = value
         if value == Maybe:
             self.state.maybe_cees.add(self)
@@ -141,18 +155,9 @@ class BoolCee(object):
         # Cees have to do notice()'s -- set()s must always be accounted for.
         # So we must complete the loop here.
         # Cers don't have to do set()'s as long as the accounting stays right.
-        good = True
         for cer in self.cers:
-            good = cer.notice_change(self, prev_value, value) and good
-        return good
-
-    def reset(self, value_to_restore):  # called by the pop
-        value_to_discard = self.value
-        self.value = value_to_restore
-        # As with set() above, we must complete the loop here.
-        for cer in self.cers:
-            cer.notice_change(self, value_to_discard, value_to_restore)
-            # for now at least
+            cer.notice_change(self, prev_value, value)
+        return self.state.consistent()
 
 
 class BoolCer(object):
@@ -225,14 +230,14 @@ class BoolCer(object):
         if self.Maybes_must_be_True():
             for cee in list(self[Maybe]):
                 if self.state.verbose:
-                    print "realize", cee.letter, cee.die, True
+                    print "infer", cee.letter, cee.die, True
                 if not cee.set(True):
                     return False
                 
         elif self.Maybes_must_be_False():
             for cee in list(self[Maybe]):
                 if self.state.verbose:
-                    print "realize", cee.letter, cee.die, False
+                    print "infer", cee.letter, cee.die, False
                 if not cee.set(False):
                     return False
 

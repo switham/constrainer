@@ -95,6 +95,12 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
         letter_dice = dict( (letter, []) for letter in letters)
         for letter in letters:
             for cee in letter_cers[letter].cees:
+                if cee.value == Maybe:
+                    print cee.letter, cee.die, "Maybe??"
+                    print cee.letter, "cers:"
+                    print [c2.value for c2 in letter_cers[cee.letter].cees]
+                    print cee.die, "cers:"
+                    print [c2.value for c2 in die_cers[cee.die].cees]
                 if cee.value:
                     letter_dice[letter].append(cee.die)
         # Remove dice from their lists as you use them to spell:
@@ -113,7 +119,7 @@ if __name__ == "__main__":
     dice = [Die(line) for line in open(args.dice)]
     n_solutions, n_deadends = spell(args.word, dice,
                                     args.many, args.count, args.verbose)
-    if args.count:
+    if args.count or args.many:
         print n_solutions, "solutions."
     if n_solutions == 0:
         if not args.count:
