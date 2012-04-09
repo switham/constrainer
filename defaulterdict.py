@@ -50,12 +50,10 @@ def DD(default_type=None):
             parts = ((repr(k) + ": " + repr(self[k])) for k in self)
             return type(self).__name__ + "({" + ", ".join(parts) + "})"
 
-    if default_type == None:
+    if default_type == Ellipsis:
         the_class.default_type = the_class
-        the_class.__name__ = "DD()"
     else:
         the_class.default_type = default_type
-        the_class.__name__ = "DD(" + default_type.__name__ + ")"
     return the_class
 
 
@@ -64,15 +62,6 @@ class Template(object):
         self.template_name = template_name
         self.Layer = Layer
         
-    def __call__(self):
-        """
-        When used like a class, a Template acts like a class that acts like
-        what Layer acts like with no arguments.
-        """
-        the_class = self.Layer()
-        the_class.__name__ = self.template_name
-        return the_class()
-    
     def __getitem__(self, default_type):
         """
         return a class T such that
@@ -83,8 +72,12 @@ class Template(object):
         """
         assert(default_type != None)
         the_class = self.Layer(default_type)
+        if default_type == Ellipsis:
+            default_type_name = "..."
+        else:
+            default_type_name = default_type.__name__
         the_class.__name__ = self.template_name + \
-                             "[" + default_type.__name__ + "]"
+                             "[" + default_type_name + "]"
         return the_class
 
 
