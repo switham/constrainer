@@ -42,50 +42,63 @@ def DD(default_type=None):
     foo = DD(DD(dict)) ()
     """
 
-    class the_class(defaultdict):
-        def __init__(self, initializer={}):
-            if default_type == None:
-                super(the_class, self).__init__(DD(), initializer)
-            else:
-                super(the_class, self).__init__(default_type, initializer)
-
-        def __repr__(self):
-            parts = ((repr(k) + ": " + repr(self[k])) for k in self)
-            return the_class.__name__ + "({" + ", ".join(parts) + "})"
-
     if default_type == None:
+        class the_class(defaultdict):
+            def __init__(self, initializer={}):
+                super(the_class, self).__init__(the_class, initializer)
+                
+            def __repr__(self):
+                parts = ((repr(k) + ": " + repr(self[k])) for k in self)
+                return type(self).__name__ + "({" + ", ".join(parts) + "})"
+            
         the_class.__name__ = "DD()"
     else:
-        the_class.__name__ = "DD(" + default_type.__name__ + ")"
+        class the_class(defaultdict):
+            def __init__(self, initializer={}):
+                super(the_class, self).__init__(default_type, initializer)
 
+            def __repr__(self):
+                parts = ((repr(k) + ": " + repr(self[k])) for k in self)
+                return type(self).__name__ + "({" + ", ".join(parts) + "})"
+
+        the_class.__name__ = "DD(" + default_type.__name__ + ")"
     return the_class
 
 
-class VirtualArrayOfClasses(object):
-    """
-    Meant to have only one instance, called Dict.
-    Use Dict like this:
-        foo = Dict[int]()       <==> foo = defaultdict(int)
-        foo = Dict[Dict[int]]() <==> foo = defaultdict(DD(int))
-    """
+class Template(object):
+    def __init__(self, template_name, Layer):
+        self.template_name = template_name
+        self.Layer = Layer
+        
+    def __call__(self):
+        """
+        When used like a class, a Template acts like a class that acts like
+        what Layer acts like with no arguments.
+        """
+        the_class = self.Layer()
+        the_class.__name__ = self.template_name
+        return the_class()
+    
     def __getitem__(self, default_type):
         """
         return a class T such that
-            T   <==> DD(default_type)
-            T() <==> DD(default_type)() <==> defaultdict(default_type)
+            T   <==> Layer(default_type)
+            T() <==> Layer(default_type) ()
+        and so
+            template[default_type]() <==> Layer(default_type)()
         """
-        the_class = DD(default_type)
-        if default_type == None:
-            the_class.__name__ = "Dict"
-        else:
-            the_class.__name__ = "Dict[" + default_type.__name__ + "]"
+        assert(default_type != None)
+        the_class = self.Layer(default_type)
+        the_class.__name__ = self.template_name + \
+                             "[" + default_type.__name__ + "]"
         return the_class
 
-    def __call__(self, *args, **kwargs):
-        the_class = self[None]
-        the_class.name = "Dict"
-        return the_class(*args, **kwargs)
 
-Dict = VirtualArrayOfClasses()
-
+Dict = Template("Dict", DD)
+Dict.__doc__ = """
+    Use Dict like this:
+        foo = Dict()            <==> foo = DD() ()
+        foo = Dict[int]()       <==> foo = DD(int) ()
+        foo = Dict[Dict[int]]() <==> foo = DD(DD(int)) ()
+    """
 
