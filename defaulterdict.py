@@ -42,25 +42,19 @@ def DD(default_type=None):
     foo = DD(DD(dict)) ()
     """
 
+    class the_class(defaultdict):
+        def __init__(self, initializer={}):
+            super(the_class, self).__init__(the_class.default_type, initializer)
+
+        def __repr__(self):
+            parts = ((repr(k) + ": " + repr(self[k])) for k in self)
+            return type(self).__name__ + "({" + ", ".join(parts) + "})"
+
     if default_type == None:
-        class the_class(defaultdict):
-            def __init__(self, initializer={}):
-                super(the_class, self).__init__(the_class, initializer)
-                
-            def __repr__(self):
-                parts = ((repr(k) + ": " + repr(self[k])) for k in self)
-                return type(self).__name__ + "({" + ", ".join(parts) + "})"
-            
+        the_class.default_type = the_class
         the_class.__name__ = "DD()"
     else:
-        class the_class(defaultdict):
-            def __init__(self, initializer={}):
-                super(the_class, self).__init__(default_type, initializer)
-
-            def __repr__(self):
-                parts = ((repr(k) + ": " + repr(self[k])) for k in self)
-                return type(self).__name__ + "({" + ", ".join(parts) + "})"
-
+        the_class.default_type = default_type
         the_class.__name__ = "DD(" + default_type.__name__ + ")"
     return the_class
 
