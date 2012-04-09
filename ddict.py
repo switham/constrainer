@@ -33,7 +33,6 @@ class Template(object):
         (whatever that means to the layerer function)
         and spells the resulting class name like: template[...].
         """
-        assert(default_type != None)
         the_class = self.layerer(default_type)
         if default_type == Ellipsis:
             default_type_name = "..."
@@ -63,7 +62,7 @@ def ddict(default_type=None):
                     {1: defaultdict(<function rdd at 0x10042ae60>, {2: 'hi'})})
 
     ddict is some syntactic sugar and class plumbing around defaultdict,
-    that works like this:
+    and is used like this:
 
     Foo = ddict[int]     Returns a class called "ddict[int]" whose instances
                          are like defaultdict(int) except for how they print.
