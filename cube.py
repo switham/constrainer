@@ -24,7 +24,7 @@ def read_label_shape(stream):
             if not line:
                 assert shape == [], "Shape ends without dash (-)"
 
-                return None
+                return None, None
 
             line = line.strip()
             if line == "" or line[0] == '-':
@@ -90,6 +90,33 @@ def all_unique_rotations(shape):
                 shape3 = rotate_shape_copy(shape3, 0, 2)
                 rotations.add(shape3)
     return list(rotations)
+
+
+def translate_shape(shape, dx, dy, dz):
+    return tuple((x + dx, y + dy, z + dz) for x, y, z in shape)
+
+
+def all_translations_fitting(shape, target):
+    t_sizes = tuple(max(pt[dim] for pt in target) + 1 for dim in range(3))
+    s_sizes = tuple(max(pt[dim] for pt in shape) + 1 for dim in range(3))
+    target_set = set(target)
+    survivors = []
+    for dx in range(t_sizes[0] - s_sizes[0] + 1):
+        for dy in range(t_sizes[1] - s_sizes[1] + 1):
+            for dz in range(t_sizes[2] - s_sizes[2] + 1):
+                candidate = translate_shape(shape, dx, dy, dz)
+                if all(pt in target_set for pt in candidate):
+                    survivors.append(candidate)
+    return survivors
+
+
+def all_orientations_fitting(shape, target):
+    """
+    An "orientation" is a combination of a rotation and a translation
+    of a specific puzzle piece.
+    """
+    return sum((all_translations_fitting(rs, target)
+                for rs in all_unique_rotations(shape)), [])
 
 
 def range_cover(values, step=1):
@@ -158,17 +185,38 @@ def print_array_of_pics(pics, n_up=12):
         print
     
 
-for filename in "cube_pieces.dat", "cube.dat":
+def read_labels_shapes(filename):
+    results = []
     with open(filename) as stream:
         while True:
-            descr = read_label_shape(stream)
-            if descr != None:
-                label, shape = descr
-                print label + ":", shape
-                rotations = all_unique_rotations(shape)
-                print len(rotations), "rotations:"
-                print
-                print_array_of_pics([shape_to_pic(s) for s in rotations])
-            else:
+            label, shape = read_label_shape(stream)
+            if not shape:
                 break
+
+            results.append( (label, shape) )
+    return results
+
+
+def show_rotations(filenames):
+    for filename in filenames:
+        for label, shape in read_labels_shapes(filename):
+            print label + ":", shape
+            rotations = all_unique_rotations(shape)
+            print len(rotations), "rotations:"
+            print
+            print_array_of_pics([shape_to_pic(s) for s in rotations])
+
+
+def show_first_orientations(shapes_filename, target_filename):
+    target_label, target = read_labels_shapes(target_filename) [0]
+    for label, shape in read_labels_shapes(shapes_filename):
+        orientations = all_orientations_fitting(shape, target)
+        print label, len(orientations), "orientations"
             
+
+def show_first_rotations():
+    show_rotations(["cube_pieces.dat", "cube.dat"])
+
+
+if __name__ == "__main__":
+    show_first_orientations("cube_pieces.dat", "cube.dat")
