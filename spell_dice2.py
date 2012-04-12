@@ -64,7 +64,7 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
         letter_cers[letter] = BoolCer(state, min_True=n_appears,
                                              max_True=n_appears, letter=letter)
 
-    # It helps here to treat a die being unused as like being
+    # It helps here to treat unused dice as like being
     # "used for nothing," or "showing the null letter."
     # The number of unused dice is exactly as many as the word doesn't need:
     n_unused_dice = len(dice) - len(word)
@@ -73,8 +73,7 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
                                            letter="unused")
 
     # Each die is used exactly once: either to show a letter, or for nothing:
-    die_cers = dict( (die, BoolCer(state, min_True=1,
-                                          max_True=1, die=die))
+    die_cers = dict( (die, BoolCer(state, min_True=1, max_True=1, die=die))
                      for die in dice)
 
     # Now the Constrainees (variables):
