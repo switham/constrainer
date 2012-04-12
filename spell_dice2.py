@@ -47,42 +47,46 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
     state = State(verbose=verbose)
     
     letters = list(set(word))
-    letter_cers = {}
-    for letter in letters:
-        # There are exactly as many dice showing a letter
-        # as appearances of the letter in the word.
-        min_True = max_True = sum(c == letter for c in word)
-        letter_cers[letter] = BoolCer(state, min_True=min_True,
-                                             max_True=max_True, letter=letter)
-
     for i, die in enumerate(dice):
         if not any(letter in die.faces for letter in letters):
             print "Die", die, "is not usable."
             dice.pop(i)
-    if len(dice) == len(word):
-        # If there are just enough dice, each die is used exactly once.
-        min_True, max_True = 1, 1
-    elif len(dice) > len(word):
-        # If more than enough dice, each die is either not used or used once.
-        min_True, max_True = 0, 1
-        # (Hmm, this means I could have a cee per die meaning "not used,"
-        # and a constraint saying len(word) dice are used.  Then how do I
-        # constrain things so that, if a die is used, it's used in at least
-        # one place?  Oh of course: exactly one of: "not used," "used for this,"
-        # "used for that," etc.)
-    else:
+    if len(dice) < len(word):
         raise Exception("Not enough dice to spell the word!")
-        
-    die_cers = dict( (die, BoolCer(state, min_True=min_True,
-                                          max_True=max_True, die=die))
-                     for die in dice)
+
+    # First we set up the Constrainers:
+
+    letter_cers = {}
     for letter in letters:
+        # There are exactly as many dice showing a letter
+        # as appearances of the letter in the word.
+        n_appears = sum(c == letter for c in word)
+        letter_cers[letter] = BoolCer(state, min_True=n_appears,
+                                             max_True=n_appears, letter=letter)
+
+    # It helps here to treat a die being unused as like being
+    # "used for nothing," or "showing the null letter."
+    # The number of unused dice is exactly as many as the word doesn't need:
+    n_unused_dice = len(dice) - len(word)
+    letter_cers["unused"] = BoolCer(state, min_True=n_unused_dice,
+                                           max_True=n_unused_dice,
+                                           letter="unused")
+
+    # Each die is used exactly once: either to show a letter, or for nothing:
+    die_cers = dict( (die, BoolCer(state, min_True=1,
+                                          max_True=1, die=die))
+                     for die in dice)
+
+    # Now the Constrainees (variables):
+    
+    for letter in letters + ["unused"]:
         for die in dice:
-            # The basic variable says: this die is used to show this letter.
+            # Variables to say: this die is used to show this letter
+            # (or, this die is not used).
             die_shows_letter = BoolCee(state, die=die, letter=letter)
             letter_cers[letter].constrain(die_shows_letter)
             die_cers[die].constrain(die_shows_letter)
-            if letter not in die.faces:
+            if letter != "unused" and letter not in die.faces:
                 die_shows_letter.set(False)
         
     n_solutions = 0

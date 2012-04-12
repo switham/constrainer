@@ -10,6 +10,8 @@ class State(object):
     """ The overall state for a constraints problem-solving process. """
 
     def __init__(self, verbose=False):
+        if verbose:
+            print "Hi, I am a new State."
         self.verbose = verbose
         self.cees = set()
         self.maybe_cees = set()
@@ -89,7 +91,7 @@ class State(object):
         self.push()
         while True:
             if not self.propagate():
-                if verbose: print "oops"
+                if verbose: print "Conflict:", self.conflicted_cers
                 yield False
                 # ...then fall down to the pop below.
 
@@ -165,8 +167,11 @@ class BoolCer(object):
     def __init__(self, state, **kwargs ):
         self.min_True = 0
         self.max_True = None
+        self.label = {}
         for kw in kwargs:
             self.__dict__[kw] = kwargs[kw]
+            if kw not in ("min_True", "max_True"):
+                self.label[kw] = kwargs[kw]
 
         self.state = state
         state.cers.add(self)
@@ -176,6 +181,9 @@ class BoolCer(object):
     def __getitem__(self, value):
         """ cer[cee.value] <==> cer.cee_categories[cee.value] """
         return self.cee_categories[value]
+
+    def __repr__(self):
+        return "Cer(" + str(self.label) + ")"
 
     def constrain(self, cee):
         if cee in self.cees:
@@ -201,11 +209,19 @@ class BoolCer(object):
             self.state.eager_cers.add(self)
         else:
             self.state.eager_cers.discard(self)
-        if len(self[True]) > self.max_True \
-                or len(self[True]) + len(self[Maybe]) < self.min_True:
-            self.state.conflicted_cers.add(self)
-        else:
-            self.state.conflicted_cers.discard(self)
+        conflicted = len(self[True]) > self.max_True \
+                or len(self[True]) + len(self[Maybe]) < self.min_True
+        if conflicted != (self in self.state.conflicted_cers):
+            if conflicted:
+                if self.state.verbose: print self, "is conflicted:"
+                self.state.conflicted_cers.add(self)
+            else:
+                if self.state.verbose: print self, "is not conflicted:"
+                self.state.conflicted_cers.discard(self)
+            if self.state.verbose:
+                print "    min:", self.min_True, "cees:", len(self.cees),
+                print "Trues:", len(self[True]),
+                print "Maybies:", len(self[Maybe]), "max:", self.max_True
         return self.state.consistent()
 
     def propagate(self):
