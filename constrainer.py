@@ -73,14 +73,14 @@ class State(object):
         Return a guess: (cee, value), where value is True or False.
         cee.value must be Maybe at the time you guess.
         This is the default guesser; it just guesses that an arbitrary
-        Maybe is True.  You may want to subclass this class and override
+        Maybe is False.  You may want to subclass this class and override
         this guesser.  If so, a good strategy to improve your chances of
         getting a solution sooner, is the Principle of Least Committment,
         which is to make the safest, most likely guess you can find.
         """
         cee = self.maybe_cees.pop()
         self.maybe_cees.add(cee)
-        return cee, True
+        return cee, False
 
     def generate_leaves(self,verbose=False):
         """
