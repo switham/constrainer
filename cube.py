@@ -5,6 +5,26 @@
 # from constrainer import *
 
 from ddict import ddict
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--puzzle", default="cube.dat",
+        type=str, help="name of the file with the puzzle to solve")
+    parser.add_argument("--pieces", metavar="file",
+        type=str, default="cube_pieces.dat",
+        help="name of file of descriptions of pieces ")
+    parser.add_argument("--many", "--multi", "-m",
+        action="store_true",
+        help="generate as many solutions as possible, not just one")
+    parser.add_argument("--count", "-c",
+        action="store_true",
+        help="just output a count of the number of solutions found")
+    parser.add_argument("--verbose", "-v",
+        action="store_true",
+        help="show search progress")
+    return parser.parse_args()
+
 
 # A shape is a list of 3D points as 3-tuples.
 # Actually that's a shape in an "orientation".
@@ -127,6 +147,16 @@ def range_cover(values, step=1):
 
 
 def shape_to_pic(shape):
+    other_pic = [ "       +          ",
+                  "     /   \        ",
+                  "   /       \      ",
+                  " +           +    ",
+                  " | \       / |    ",
+                  " |   \   /   |    ",
+                  " +     +     +    ",
+                  "   \   |   /      ",
+                  "     \ | /        ",
+                  "       +          ", ]
     cube_pic = [ "##+---------+",
                  "#/         /|",
                  "+---------+ |",
@@ -178,7 +208,7 @@ def pics_side_by_side(pics):
         yield "     ".join(pic[i] for pic in pics)
     
 
-def print_array_of_pics(pics, n_up=12):
+def print_array_of_pics(pics, n_up=2):
     for i in range(0, len(pics), n_up):
         stop = min(i + n_up, len(pics))
         print '\n'.join(pics_side_by_side(pics[i : stop]))
@@ -218,5 +248,110 @@ def show_first_rotations():
     show_rotations(["cube_pieces.dat", "cube.dat"])
 
 
-if __name__ == "__main__":
+def old_main():
     show_first_orientations("cube_pieces.dat", "cube.dat")
+    show_first_rotations()
+
+
+def solve(puzzle, pieces, multi=False, just_count=False, verbose=False):
+    state = State(verbose=verbose)
+    
+    bloxels = list(set(puzzle))
+    for i, piece in enumerate(pieces):
+        if not any(bloxel in piece.faces for bloxel in bloxels):
+            print "Piece", piece, "is not usable."
+            pieces.pop(i)
+    if len(pieces) < len(puzzle):
+        raise Exception("Not enough pieces to solve the puzzle!")
+
+    # First we set up the Constrainers:
+
+    bloxel_cers = {}
+    for bloxel in bloxels:
+        # There are exactly as many pieces occupying a bloxel
+        # as appearances of the bloxel in the puzzle.
+        n_appears = sum(c == bloxel for c in puzzle)
+        bloxel_cers[bloxel] = BoolCer(state, min_True=n_appears,
+                                             max_True=n_appears, bloxel=bloxel)
+
+    # It helps here to treat unused pieces as like being
+    # "used for nothing," or "occupying the null bloxel."
+    # The number of unused pieces is exactly as many as the puzzle doesn't need:
+    n_unused_pieces = len(pieces) - len(puzzle)
+    bloxel_cers["unused"] = BoolCer(state, min_True=n_unused_pieces,
+                                           max_True=n_unused_pieces,
+                                           bloxel="unused")
+
+    # Each piece is used exactly once: either to occupy a bloxel, or for nothing:
+    piece_cers = dict( (piece, BoolCer(state, min_True=1, max_True=1, piece=piece))
+                     for piece in pieces)
+
+    # Now the Constrainees (variables):
+    
+    for bloxel in bloxels + ["unused"]:
+        for piece in pieces:
+            # Variables to say: this piece is used to occupy this bloxel
+            # (or, this piece is not used).
+            piece_occupys_bloxel = BoolCee(state, piece=piece, bloxel=bloxel)
+            bloxel_cers[bloxel].constrain(piece_occupys_bloxel)
+            piece_cers[piece].constrain(piece_occupys_bloxel)
+            if bloxel != "unused" and bloxel not in piece.faces:
+                piece_occupys_bloxel.set(False)
+        
+    n_solutions = 0
+    n_deadends = 0
+    for is_solution in state.generate_leaves(verbose):
+        if not is_solution:
+            n_deadends += 1
+            continue
+
+        n_solutions += 1
+        if verbose:
+            print "===== solution", n_solutions, state.depth(), "====="
+            sys.stdout.flush()
+        if just_count:
+            continue
+
+        # Show a solution.
+        # For each bloxel, make a list of pieces that are occupying it.
+        bloxel_pieces = dict( (bloxel, []) for bloxel in bloxels)
+        for bloxel in bloxels:
+            for cee in bloxel_cers[bloxel].cees:
+                if cee.value == Maybe:
+                    print cee.bloxel, cee.piece, "Maybe??"
+                    print cee.bloxel, "cers:"
+                    print [c2.value for c2 in bloxel_cers[cee.bloxel].cees]
+                    print cee.piece, "cers:"
+                    print [c2.value for c2 in piece_cers[cee.piece].cees]
+                if cee.value:
+                    bloxel_pieces[bloxel].append(cee.piece)
+        # Remove pieces from their lists as you use them to solve:
+        for bloxel in puzzle:
+            piece = bloxel_pieces[bloxel].pop()
+            print bloxel, piece
+        print
+        if not multi:
+            break
+        
+    return n_solutions, n_deadends
+
+
+if __name__ == "__main__":
+    old_main()
+
+elif False:
+    args = parse_args()
+    pieces = dict(read_labels_shapes(args.pieces))
+    target_label, target_shape = read_labels_shapes(args.puzzle)
+    
+    n_solutions, n_deadends = solve(args.puzzle, pieces,
+                                    args.many, args.count, args.verbose)
+    if args.count or args.many:
+        print n_solutions, "solutions."
+    if n_solutions == 0:
+        if not args.count:
+            print >>sys.stderr, "No solutions."
+    print n_deadends, "dead ends"
+    if n_solutions == 0:
+        sys.exit(1)
+
