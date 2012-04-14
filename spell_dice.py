@@ -82,11 +82,10 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
         for die in dice:
             # Variables to say: this die is used to show this letter
             # (or, this die is not used).
-            die_shows_letter = BoolCee(state, die=die, letter=letter)
-            letter_cers[letter].constrain(die_shows_letter)
-            die_cers[die].constrain(die_shows_letter)
-            if letter != "unused" and letter not in die.faces:
-                die_shows_letter.set(False)
+            if letter == "unused" or letter in die.faces:
+                die_shows_letter = BoolCee(state, die=die, letter=letter)
+                letter_cers[letter].constrain(die_shows_letter)
+                die_cers[die].constrain(die_shows_letter)
         
     n_solutions = 0
     n_deadends = 0
