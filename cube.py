@@ -253,38 +253,59 @@ def old_main():
     show_first_rotations()
 
 
-def solve(puzzle, pieces, multi=False, just_count=False, verbose=False):
+def solve(target, pieces, multi=False, just_count=False, verbose=False):
+    """ target is a shape.  pieces is a dict of {label_letter: shape}. """
+    # Quick summary:
+    #     7 pieces, up to 27 target bloxels, up to about 700 piece-orientations.
+    #     Let's only use "bloxel" to refer to points in the target.
+    #     Two kinds of vars:
+    #         orientation-is-used
+    #         piece-unused  ("unused" is not an orientation as it has no var)
+    #     Constraint types:
+    #         Each bloxel is occupied exactly once.
+    #         Exactly one orientation, or unused, per piece.
+    #         A certain number of pieces with four points are unused.
+    #         Known ahead of time whether the 3-point "r" piece is used or not.
+    # Comparison to spelling with letter-dice:
+    #     A piece is kinda like a die.
+    #     An orientation is kinda like a face of a die.
+    #     A target bloxel is kinda like a letter of the word to be spelled.
+    #     But, each orientation occupies multiple bloxels, so a piece can
+    #         potentially have alternative ways to occupy a bloxel.
+    #         The useable die faces were vars at the intersection of one die
+    #         and one letter.  But each orientation is a var constrained by
+    #         one piece and by multiple bloxels.
     state = State(verbose=verbose)
     
-    bloxels = list(set(puzzle))
+    bloxels = list(set(target))
     for i, piece in enumerate(pieces):
-        if not any(bloxel in piece.faces for bloxel in bloxels):
+        if not any(bloxel in piece.orientations for bloxel in bloxels):
             print "Piece", piece, "is not usable."
             pieces.pop(i)
-    if len(pieces) < len(puzzle):
+    if len(pieces) < len(target):
         raise Exception("Not enough pieces to solve the puzzle!")
 
     # First we set up the Constrainers:
 
-    bloxel_cers = {}
+    bloxel_constraints = {}
     for bloxel in bloxels:
         # There are exactly as many pieces occupying a bloxel
-        # as appearances of the bloxel in the puzzle.
-        n_appears = sum(c == bloxel for c in puzzle)
-        bloxel_cers[bloxel] = BoolCer(state, min_True=n_appears,
-                                             max_True=n_appears, bloxel=bloxel)
+        # as appearances of the bloxel in the target.
+        n = sum(c == bloxel for c in target)
+        bloxel_constraints[bloxel] = BoolConstraint(state, bloxel=bloxel,
+                                                    min_True=n, max_True=n)
 
     # It helps here to treat unused pieces as like being
     # "used for nothing," or "occupying the null bloxel."
-    # The number of unused pieces is exactly as many as the puzzle doesn't need:
-    n_unused_pieces = len(pieces) - len(puzzle)
-    bloxel_cers["unused"] = BoolCer(state, min_True=n_unused_pieces,
-                                           max_True=n_unused_pieces,
-                                           bloxel="unused")
+    # The number of unused pieces is exactly as many as the target doesn't need:
+    n = len(pieces) - len(target)
+    bloxel_constraints["unused"] = BoolConstraint(state, bloxel="unused",
+                                                  min_True=n, max_True=n)
 
-    # Each piece is used exactly once: either to occupy a bloxel, or for nothing:
-    piece_cers = dict( (piece, BoolCer(state, min_True=1, max_True=1, piece=piece))
-                     for piece in pieces)
+    # Each piece is used exactly once: to occupy a bloxel, or for nothing:
+    piece_constraints = dict( (piece, BoolConstraint(state, piece=piece,
+                                                     min_True=1, max_True=1))
+                              for piece in pieces)
 
     # Now the Constrainees (variables):
     
@@ -292,11 +313,11 @@ def solve(puzzle, pieces, multi=False, just_count=False, verbose=False):
         for piece in pieces:
             # Variables to say: this piece is used to occupy this bloxel
             # (or, this piece is not used).
-            piece_occupys_bloxel = BoolCee(state, piece=piece, bloxel=bloxel)
-            bloxel_cers[bloxel].constrain(piece_occupys_bloxel)
-            piece_cers[piece].constrain(piece_occupys_bloxel)
-            if bloxel != "unused" and bloxel not in piece.faces:
-                piece_occupys_bloxel.set(False)
+            if bloxel == "unused" or bloxel in piece.orientations:
+                piece_occupys_bloxel = BoolVar(state, piece=piece,
+                                               bloxel=bloxel)
+                bloxel_constraints[bloxel].constrain(piece_occupys_bloxel)
+                piece_constraints[piece].constrain(piece_occupys_bloxel)
         
     n_solutions = 0
     n_deadends = 0
@@ -316,17 +337,17 @@ def solve(puzzle, pieces, multi=False, just_count=False, verbose=False):
         # For each bloxel, make a list of pieces that are occupying it.
         bloxel_pieces = dict( (bloxel, []) for bloxel in bloxels)
         for bloxel in bloxels:
-            for cee in bloxel_cers[bloxel].cees:
-                if cee.value == Maybe:
-                    print cee.bloxel, cee.piece, "Maybe??"
-                    print cee.bloxel, "cers:"
-                    print [c2.value for c2 in bloxel_cers[cee.bloxel].cees]
-                    print cee.piece, "cers:"
-                    print [c2.value for c2 in piece_cers[cee.piece].cees]
-                if cee.value:
-                    bloxel_pieces[bloxel].append(cee.piece)
+            for var in bloxel_constraints[bloxel].vars:
+                if var.value == Maybe:
+                    print var.bloxel, var.piece, "Maybe??"
+                    print var.bloxel, "constraints:"
+                    print [c2.value for c2 in bloxel_constraints[var.bloxel].vars]
+                    print var.piece, "constraints:"
+                    print [c2.value for c2 in piece_constraints[var.piece].vars]
+                if var.value:
+                    bloxel_pieces[bloxel].append(var.piece)
         # Remove pieces from their lists as you use them to solve:
-        for bloxel in puzzle:
+        for bloxel in target:
             piece = bloxel_pieces[bloxel].pop()
             print bloxel, piece
         print
@@ -342,9 +363,9 @@ if __name__ == "__main__":
 elif False:
     args = parse_args()
     pieces = dict(read_labels_shapes(args.pieces))
-    target_label, target_shape = read_labels_shapes(args.puzzle)
+    target_label, target = read_labels_shapes(args.puzzle)
     
-    n_solutions, n_deadends = solve(args.puzzle, pieces,
+    n_solutions, n_deadends = solve(target, pieces,
                                     args.many, args.count, args.verbose)
     if args.count or args.many:
         print n_solutions, "solutions."

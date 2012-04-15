@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-constrainer.py -- boolean "constrainers" ("cers") and "constrainees" ("cees").
+constrainer.py -- boolean variables and constraints on them.
 """
 
 from maybies import *
@@ -13,12 +13,12 @@ class State(object):
         if verbose:
             print "Hi, I am a new State."
         self.verbose = verbose
-        self.cees = set()
-        self.maybe_cees = set()
-        self.cers = set()
-        self.conflicted_cers = set()
-        self.eager_cers = set()
-        self.log_stack = [[]]  # a list of lists of (cee, prev_value) pairs.
+        self.vars = set()
+        self.maybe_vars = set()
+        self.constraints = set()
+        self.conflicted_constraints = set()
+        self.eager_constraints = set()
+        self.log_stack = [[]]  # a list of lists of (var, prev_value) pairs.
 
     def depth(self):
         return len(self.log_stack)
@@ -34,8 +34,8 @@ class State(object):
         or return False if we hit bottom.
         """
         if len(self.log_stack) > 1:
-            for cee, value_to_restore in reversed(self.log_stack.pop()):
-                cee.raw_set(value_to_restore)
+            for var, value_to_restore in reversed(self.log_stack.pop()):
+                var.raw_set(value_to_restore)
             return True
         
         else:
@@ -44,43 +44,42 @@ class State(object):
             return False
 
     def check_all(self):
-        self.maybe_cees = set(cee for cee in self.cees if cee.value == Maybe)
-        # (not to mention the slitted sheet)
-        for cer in self.cers:
-            cer.check()
+        self.maybe_vars = set(var for var in self.vars if var.value == Maybe)
+        for constraint in self.constraints:
+            constraint.check()
 
     def consistent(self):
-        return not self.conflicted_cers
+        return not self.conflicted_constraints
 
     def is_solved(self):
-        return not self.conflicted_cers and not self.maybe_cees
+        return not self.conflicted_constraints and not self.maybe_vars
 
     def propagate(self):
         if not self.consistent():
             return False
         
-        while self.eager_cers:
-            for cer in list(self.eager_cers):
-                if not cer.propagate():
+        while self.eager_constraints:
+            for constraint in list(self.eager_constraints):
+                if not constraint.propagate():
                     return False
 
-                # cer should have made itself uneager if no contradiction.
+                # constraint should have become uneager if no contradiction.
         # We should have caught any contradictions by now.            
         return True
 
     def guess(self):
         """
-        Return a guess: (cee, value), where value is True or False.
-        cee.value must be Maybe at the time you guess.
+        Return a guess: (var, value), where value is True or False.
+        var.value must be Maybe at the time you guess.
         This is the default guesser; it just guesses that an arbitrary
         Maybe is False.  You may want to subclass this class and override
         this guesser.  If so, a good strategy to improve your chances of
         getting a solution sooner, is the Principle of Least Committment,
         which is to make the safest, most likely guess you can find.
         """
-        cee = self.maybe_cees.pop()
-        self.maybe_cees.add(cee)
-        return cee, False
+        var = self.maybe_vars.pop()
+        self.maybe_vars.add(var)
+        return var, False
 
     def generate_leaves(self,verbose=False):
         """
@@ -91,7 +90,7 @@ class State(object):
         self.push()
         while True:
             if not self.propagate():
-                if verbose: print "Conflict:", self.conflicted_cers
+                if verbose: print "Conflict:", self.conflicted_constraints
                 yield False
                 # ...then fall down to the pop below.
 
@@ -100,43 +99,43 @@ class State(object):
                 # ...then fall down to the pop below.
 
             else:
-                cee, value = self.guess()
+                var, value = self.guess()
                 if self.verbose:
-                    print "guess", cee.die, cee.letter, value
-                assert cee.value == Maybe, "You can only guess about Maybies."
+                    print "guess", var.die, var.letter, value
+                assert var.value == Maybe, "You can only guess about Maybies."
                 assert value != Maybe, "Must guess True or False, not Maybe."
                 # This set() pushes the Maybe and sets the alternative.
                 # Pop through here untakes both alternatives and their context.
-                cee.set(not value)
+                var.set(not value)
                 self.push()  # -------- the stack frame boundary --------
                 # This set() pushes the alternative and sets the guess.
                 # Pop through here tries the alternative.
-                cee.set(value)
+                var.set(value)
                 continue
 
             if not self.pop():
                 break
         
     
-class BoolCee(object):
+class BoolVar(object):
     """
-    A constrainee is a True/False/Maybe variable or slot, constrained by cers.
+    A True/False/Maybe variable or slot, constrained by constraints.
     """
     def __init__(self, state, **kwargs):
         self.state = state
         for kw in kwargs:
             self.__dict__[kw] = kwargs[kw]
         self.value = Maybe
-        state.cees.add(self)
-        state.maybe_cees.add(self)
-        self.cers = set()
+        state.vars.add(self)
+        state.maybe_vars.add(self)
+        self.constraints = set()
 
-    def be_constrained_by(self, cer):
-        if cer in self.cers:
-            return
+    def be_constrained_by(self, constraint):
+        """ Not meant to be called by the user. """
+        assert constraint not in self.constraints, \
+               "Adding a constraint to a var twice."
         
-        self.cers.add(cer)
-        cer.constrain(self)
+        self.constraints.add(constraint)
 
     def set(self, value):
         """ Push, then set.  Return False if a contradiction results. """
@@ -151,19 +150,19 @@ class BoolCee(object):
         prev_value = self.value
         self.value = value
         if value == Maybe:
-            self.state.maybe_cees.add(self)
+            self.state.maybe_vars.add(self)
         else:
-            self.state.maybe_cees.discard(self)
-        # Cees have to do notice()'s -- set()s must always be accounted for.
-        # So we must complete the loop here.
-        # Cers don't have to do set()'s as long as the accounting stays right.
-        for cer in self.cers:
-            cer.notice_change(self, prev_value, value)
+            self.state.maybe_vars.discard(self)
+        # Vars have to do notice()'s -- set()s must always be accounted for.
+        # So we must complete the loop here.  Constraints don't have to do
+        # all the set()'s they could, as long as the accounting stays right.
+        for constraint in self.constraints:
+            constraint.notice_change(self, prev_value, value)
         return self.state.consistent()
 
 
-class BoolCer(object):
-    """ A 'constrainer' manages a constraint over some cees. """
+class BoolConstraint(object):
+    """ An object that manages a constraint over some vars. """
     def __init__(self, state, **kwargs ):
         self.min_True = 0
         self.max_True = None
@@ -174,64 +173,67 @@ class BoolCer(object):
                 self.label[kw] = kwargs[kw]
 
         self.state = state
-        state.cers.add(self)
-        self.cees = set()
-        self.cee_categories = {True: set(), Maybe: set(), False: set()}
+        state.constraints.add(self)
+        self.vars = set()
+        self.var_categories = {True: set(), Maybe: set(), False: set()}
 
     def __getitem__(self, value):
-        """ cer[cee.value] <==> cer.cee_categories[cee.value] """
-        return self.cee_categories[value]
+        """
+        self[value], where value is in {True, Maybe, False},
+        is the set of my vars that are currently set to value.
+        self[value].add() and self[value].discard() modify the sets.
+        """
+        return self.var_categories[value]
 
     def __repr__(self):
-        return "Cer(" + str(self.label) + ")"
+        return "Constraint(" + str(self.label) + ")"
 
-    def constrain(self, cee):
-        if cee in self.cees:
-            return
+    def constrain(self, var):
+        assert var not in self.vars, "Adding a var to a constraint twice."
         
-        self.cees.add(cee)
-        self[cee.value].add(cee)
-        cee.be_constrained_by(self)
+        self.vars.add(var)
+        self[var.value].add(var)
+        var.be_constrained_by(self)
 
-    def notice_change(self, cee, prev_value, new_value):
-        self[prev_value].discard(cee)
-        self[new_value].add(cee)
+    def notice_change(self, var, prev_value, new_value):
+        self[prev_value].discard(var)
+        self[new_value].add(var)
         return self.check()
 
     def check(self):
         """
         Become "eager" if there are Maybes whose values can be inferred.
-        Check whether my cee populations are consistent with my min_True and
+        Check whether my var populations are consistent with my min_True and
         max_True.  Update both of these situations in the state.
-        Return False if there's a contradiction noticed *anywhere*.
+        Return False if there's a contradiction noticed in *any* constraint.
         """
         if self.Maybes_must_be_True() or self.Maybes_must_be_False():
-            self.state.eager_cers.add(self)
+            self.state.eager_constraints.add(self)
         else:
-            self.state.eager_cers.discard(self)
+            self.state.eager_constraints.discard(self)
         conflicted = len(self[True]) > self.max_True \
                 or len(self[True]) + len(self[Maybe]) < self.min_True
-        if conflicted != (self in self.state.conflicted_cers):
+        if conflicted != (self in self.state.conflicted_constraints):
             if conflicted:
                 if self.state.verbose: print self, "is conflicted:"
-                self.state.conflicted_cers.add(self)
+                self.state.conflicted_constraints.add(self)
             else:
                 if self.state.verbose: print self, "is not conflicted:"
-                self.state.conflicted_cers.discard(self)
+                self.state.conflicted_constraints.discard(self)
             if self.state.verbose:
-                print "    min:", self.min_True, "cees:", len(self.cees),
+                print "    min:", self.min_True, "vars:", len(self.vars),
                 print "Trues:", len(self[True]),
                 print "Maybies:", len(self[Maybe]), "max:", self.max_True
         return self.state.consistent()
 
     def propagate(self):
         """
-        This is usually called when this cer is eager, but there is a case
-        where the cer is still in the state's to-propagate list after it has
-        become uneager.  When a cer does propagate (completely) it always
-        leaves itself uneager.
+        This is usually called when this constraint is eager, but there is a
+        case where the constraint is still in the state's to-propagate list
+        after it has become uneager.  When a constraint does propagate
+        (completely) it always resets itself to uneager.
          o  Propagate does the right thing if there's nothing to do.
-         o  A cer needn't propagate completely or at all if there's a
+         o  A constraint needn't propagate completely or at all if there's a
             contradiction; partially-done propagations leave a still-eager
             situation, and propagate() will get called again if appropriate.
          o  Reporting a contradiction is more important than propagating.
@@ -240,21 +242,22 @@ class BoolCer(object):
         if not self.check():
             return False
 
-        # Cees have to do notice()'s -- set()s must always be accounted for.
-        # Cers don't have to do sets as long as the accounting stays correct.
+        # Vars have to do notice()'s -- set()s must always be accounted for.
+        # Constraints don't have to do all possible sets as long as the
+        # accounting stays correct.
         # So I can return in the middle of a loop here.
         if self.Maybes_must_be_True():
-            for cee in list(self[Maybe]):
+            for var in list(self[Maybe]):
                 if self.state.verbose:
-                    print "infer", cee.letter, cee.die, True
-                if not cee.set(True):
+                    print "infer", var.letter, var.die, True
+                if not var.set(True):
                     return False
                 
         elif self.Maybes_must_be_False():
-            for cee in list(self[Maybe]):
+            for var in list(self[Maybe]):
                 if self.state.verbose:
-                    print "infer", cee.letter, cee.die, False
-                if not cee.set(False):
+                    print "infer", var.letter, var.die, False
+                if not var.set(False):
                     return False
 
         return self.check()

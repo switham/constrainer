@@ -56,36 +56,38 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
 
     # First we set up the Constrainers:
 
-    letter_cers = {}
+    letter_constraints = {}
     for letter in letters:
         # There are exactly as many dice showing a letter
         # as appearances of the letter in the word.
         n_appears = sum(c == letter for c in word)
-        letter_cers[letter] = BoolCer(state, min_True=n_appears,
+        letter_constraints[letter] = BoolConstraint(state, min_True=n_appears,
                                              max_True=n_appears, letter=letter)
 
     # It helps here to treat unused dice as like being
     # "used for nothing," or "showing the null letter."
     # The number of unused dice is exactly as many as the word doesn't need:
     n_unused_dice = len(dice) - len(word)
-    letter_cers["unused"] = BoolCer(state, min_True=n_unused_dice,
-                                           max_True=n_unused_dice,
-                                           letter="unused")
+    letter_constraints["unused"] = BoolConstraint(state,
+                                                  min_True=n_unused_dice,
+                                                  max_True=n_unused_dice,
+                                                  letter="unused")
 
     # Each die is used exactly once: either to show a letter, or for nothing:
-    die_cers = dict( (die, BoolCer(state, min_True=1, max_True=1, die=die))
-                     for die in dice)
+    die_constraints = dict( (die, BoolConstraint(state, min_True=1, max_True=1,
+                                                 die=die))
+                            for die in dice)
 
-    # Now the Constrainees (variables):
+    # Now the Variables:
     
     for letter in letters + ["unused"]:
         for die in dice:
             # Variables to say: this die is used to show this letter
             # (or, this die is not used).
             if letter == "unused" or letter in die.faces:
-                die_shows_letter = BoolCee(state, die=die, letter=letter)
-                letter_cers[letter].constrain(die_shows_letter)
-                die_cers[die].constrain(die_shows_letter)
+                die_shows_letter = BoolVar(state, die=die, letter=letter)
+                letter_constraints[letter].constrain(die_shows_letter)
+                die_constraints[die].constrain(die_shows_letter)
         
     n_solutions = 0
     n_deadends = 0
@@ -105,15 +107,16 @@ def spell(word, dice, multi=False, just_count=False, verbose=False):
         # For each letter, make a list of dice that are showing it.
         letter_dice = dict( (letter, []) for letter in letters)
         for letter in letters:
-            for cee in letter_cers[letter].cees:
-                if cee.value == Maybe:
-                    print cee.letter, cee.die, "Maybe??"
-                    print cee.letter, "cers:"
-                    print [c2.value for c2 in letter_cers[cee.letter].cees]
-                    print cee.die, "cers:"
-                    print [c2.value for c2 in die_cers[cee.die].cees]
-                if cee.value:
-                    letter_dice[letter].append(cee.die)
+            for var in letter_constraints[letter].vars:
+                if var.value == Maybe:
+                    print var.letter, var.die, "Maybe??"
+                    print var.letter, "constraints:"
+                    print [c2.value \
+                           for c2 in letter_constraints[var.letter].vars]
+                    print var.die, "constraints:"
+                    print [c2.value for c2 in die_constraints[var.die].vars]
+                if var.value:
+                    letter_dice[letter].append(var.die)
         # Remove dice from their lists as you use them to spell:
         for letter in word:
             die = letter_dice[letter].pop()
