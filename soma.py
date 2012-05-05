@@ -1,19 +1,24 @@
 #!/usr/bin/env python
-""" cube.py -- The Cube puzzle. """
+""" soma.py -- Solver for Piet Hein's Soma cube puzzles. """
 
 from sys import stdout, stderr, exit
 from maybies import *
 from constrainer import *
+import os
 
 from ddict import ddict
 import argparse
 
+SHAPES_DIR = "soma_puzzles"
+CUBE_FILE = os.path.join(SHAPES_DIR, "cube.dat")
+PIECES_FILE = os.path.join(SHAPES_DIR, "soma_pieces.dat")
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--puzzle", default="cube.dat",
+    parser.add_argument("--puzzle", default=CUBE_FILE,
         type=str, help="name of the file with the puzzle to solve")
     parser.add_argument("--pieces", metavar="file",
-        type=str, default="cube_pieces.dat",
+        type=str, default=PIECES_FILE,
         help="name of file of descriptions of pieces ")
     parser.add_argument("--many", "--multi", "-m",
         action="store_true",
@@ -71,6 +76,20 @@ class Orientation(object):
         return "Orientation(%s, %s)" % (self.piece, str(self))
         
 
+def print_points_labels(point_labels):
+    shape = point_labels.keys()
+    maxes = [max(pt[dim] for pt in shape) for dim in range(3)]
+    # Layers of the picture back to front (decreasing z):
+    for z in range(maxes[2], -1, -1):
+        # y increases going down:
+        for y in range(maxes[1] + 1):
+            print " ".join(point_labels.get((x, y, z), '.')
+                           for x in range(maxes[0] + 1))
+        if z > 0:
+            print
+    print "-" * (maxes[0] * 2 - 1)
+
+
 def read_label_shape(stream):
     shape = []
     heights = []
@@ -121,10 +140,26 @@ def read_label_shape(stream):
     return list(chars)[0], canonical_shape_copy(shape)
 
 
+def read_labels_shapes(filename):
+    """
+    Read shapes, each with a letter label, and return a list of
+    (letter, shape).
+    """
+    results = []
+    with open(filename) as stream:
+        while True:
+            label, shape = read_label_shape(stream)
+            if not shape:
+                break
+
+            results.append( (label, shape) )
+    return results
+
+
 def canonical_shape_copy(shape):
     """ A shape is in canonical form when the mininums of x, y & z are zero. """
-    mins = tuple(min(pt[dim] for pt in shape) for dim in range(3))
-    new = (tuple(pt[dim] - mins[dim] for dim in range(3)) for pt in shape)
+    mins = [min(pt[dim] for pt in shape) for dim in range(3)]
+    new = [tuple(pt[dim] - mins[dim] for dim in range(3)) for pt in shape]
     return tuple(sorted(new))
 
 
@@ -257,22 +292,6 @@ def print_array_of_pics(pics, n_up=2):
         print
     
 
-def read_labels_shapes(filename):
-    """
-    Read shapes, each with a letter label, and return a list of
-    (letter, shape).
-    """
-    results = []
-    with open(filename) as stream:
-        while True:
-            label, shape = read_label_shape(stream)
-            if not shape:
-                break
-
-            results.append( (label, shape) )
-    return results
-
-
 def show_rotations(filenames):
     for filename in filenames:
         for label, shape in read_labels_shapes(filename):
@@ -291,11 +310,11 @@ def show_first_orientations(shapes_filename, target_filename):
             
 
 def show_first_rotations():
-    show_rotations(["cube_pieces.dat", "cube.dat"])
+    show_rotations([PIECES_FILE, CUBE_FILE])
 
 
 def old_main():
-    show_first_orientations("cube_pieces.dat", "cube.dat")
+    show_first_orientations(PIECES_FILE, CUBE_FILE)
     show_first_rotations()
 
 
@@ -304,25 +323,8 @@ def solve(target, piece_shapes, multi=False, just_count=False, verbose=False):
     target is a shape.
     piece_shapes is a dict of {label_letter: shape}.
     """
-    # Quick summary:
-    #     7 pieces, up to 27 target bloxels, up to about 700 piece-orientations.
-    #     Let's only use "bloxel" to refer to points in the target.
-    #     Two kinds of vars:
-    #         orientation-is-used
-    #         piece-is-unused
-    #     Constraint types:
-    #         Each bloxel is occupied exactly once.
-    #         Each piece is in exactly one orientation, or unused.
-    #         A certain number of pieces with four points are unused.
-    #         Known ahead of time whether the 3-point "r" piece is used or not.
-    # Comparison to spelling with letter-dice:
-    #     A piece is like a die, an orientation is like a die face, and 
-    #     a target bloxel is like a letter of the word to be spelled.
-    #     But, each orientation occupies multiple bloxels, so a piece can
-    #         potentially have alternative ways to occupy a bloxel.
-    #         The useable die faces were vars at the intersection of one die
-    #         and one letter.  But each cube piece orientation is a var
-    #         constrained by one piece and by multiple bloxels.
+    # 7 pieces, up to 27 target bloxels, up to about 700 piece-orientations.
+    # Let's only use "bloxel" to refer to points in the target.
     state = State(verbose=verbose)
 
     # First we set up the Constraints:
@@ -345,13 +347,12 @@ def solve(target, piece_shapes, multi=False, just_count=False, verbose=False):
                                                         min_True=1, max_True=1)
 
     # Constraints on how many pieces are unused, for two sizes of piece:
-    n_unused = {}
     n_4_pieces = sum(1 for piece in pieces if len(piece.shape) == 4)
     n_3_pieces = sum(1 for piece in pieces if len(piece.shape) == 3)
     assert n_3_pieces == 1 and n_3_pieces + n_4_pieces == len(pieces), \
         "Don't know how to work with this set of pieces, sorry!"
-    n_unused[4] = n_4_pieces - (len(target) / 4)
-    n_unused[3] = n_3_pieces - (len(target) % 4) / 3
+    n_unused = {4: n_4_pieces - (len(target) / 4),
+                3: n_3_pieces - (len(target) % 4) / 3}
     assert len(target) % 4 in (3, 0) and n_unused[4] >= 0, \
         "Target has %d bloxels, can't be made out of the pieces." % len(target)
     how_many_unused = {}
@@ -360,24 +361,21 @@ def solve(target, piece_shapes, multi=False, just_count=False, verbose=False):
             BoolConstraint(state, piece_size=piece_size,
                                   min_True=n_unused[piece_size],
                                   max_True=n_unused[piece_size])
-
     # Now the variables:
 
     for piece in pieces:
-        piece_unused = BoolVar(state, label="unused")
+        piece_unused = BoolVar(state, piece=piece, label="unused")
         oriented_one_way[piece].constrain(piece_unused)
         piece_size = len(piece.shape)
         how_many_unused[piece_size].constrain(piece_unused)
         
-        piece.orientations = all_orientations_fitting(piece, target)
-        for orientation in piece.orientations:
-            bloxels = [point_bloxels[pt] for pt in orientation.shape]
-            oriented_thus = BoolVar(state, orientation=orientation,
-                                           bloxels=bloxels)
-            oriented_one_way[piece].constrain(oriented_thus)
-            for bloxel in bloxels:
-                occupied_once[bloxel].constrain(oriented_thus)
-            
+        for orientation in all_orientations_fitting(piece, target):
+            orient_bloxels = [point_bloxels[pt] for pt in orientation.shape]
+            piece_oriented_thus = BoolVar(state, orientation=orientation,
+                                                 bloxels=orient_bloxels)
+            oriented_one_way[piece].constrain(piece_oriented_thus)
+            for bloxel in orient_bloxels:
+                occupied_once[bloxel].constrain(piece_oriented_thus)
 
     # Go solve it.
         
@@ -397,7 +395,14 @@ def solve(target, piece_shapes, multi=False, just_count=False, verbose=False):
             continue
 
         # Show a solution.
-        print "I'd like to show you the solution here."
+        point_labels = {}
+        for bloxel in bloxels:
+            occupiers = occupied_once[bloxel][True]
+            assert len(occupiers) == 1
+            orientation_var = list(occupiers) [0]
+            piece = orientation_var.orientation.piece
+            point_labels[bloxel.point] = piece.label
+        print_points_labels(point_labels)
         
         print
         if not multi:
