@@ -87,7 +87,7 @@ def print_points_labels(point_labels):
                            for x in range(maxes[0] + 1))
         if z > 0:
             print
-    print "-" * (maxes[0] * 2 - 1)
+    print "-" * (maxes[0] * 2 + 1)
 
 
 def read_label_shape(stream):
@@ -361,6 +361,11 @@ def solve(target, piece_shapes, multi=False, just_count=False, verbose=False):
             BoolConstraint(state, piece_size=piece_size,
                                   min_True=n_unused[piece_size],
                                   max_True=n_unused[piece_size])
+    t_unused = sum(n_unused.values())
+    if t_unused == 0:
+        print "All", len(pieces), "pieces used."
+    else:
+        print len(pieces) - t_unused, "pieces used."
     # Now the variables:
 
     for piece in pieces:
