@@ -5,6 +5,7 @@ from sys import stdout, stderr, exit
 from maybies import *
 from constrainer import *
 import os
+import time
 
 from ddict import ddict
 import argparse
@@ -17,6 +18,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--puzzle", default=CUBE_FILE,
         type=str, help="name of the file with the puzzle to solve")
+    parser.add_argument("--default_guess", default="False", metavar="BOOL",
+        type=str, help="Always guess that a piece is/isn't in a place")
     parser.add_argument("--pieces", metavar="file",
         type=str, default=PIECES_FILE,
         help="name of file of descriptions of pieces ")
@@ -318,7 +321,8 @@ def old_main():
     show_first_rotations()
 
 
-def solve(target, piece_shapes, multi=False, just_count=False, verbose=False):
+def solve(target, piece_shapes, multi=False, just_count=False,
+          verbose=False, default_guess=None):
     """
     target is a shape.
     piece_shapes is a dict of {label_letter: shape}.
@@ -386,7 +390,8 @@ def solve(target, piece_shapes, multi=False, just_count=False, verbose=False):
         
     n_solutions = 0
     n_deadends = 0
-    for is_solution in state.generate_leaves(verbose):
+    for is_solution in state.generate_leaves(verbose,
+                                             default_guess=default_guess):
         if not is_solution:
             n_deadends += 1
             continue
@@ -420,15 +425,18 @@ if __name__ == "__main__":
     args = parse_args()
     pieces = dict(read_labels_shapes(args.pieces))
     target_label, target = read_labels_shapes(args.puzzle) [0]
-    
+    default_guess = (args.default_guess == "True")
+    print "default_guess =", default_guess
+    start = time.clock()
     n_solutions, n_deadends = solve(target, pieces,
-                                    args.many, args.count, args.verbose)
+                                    args.many, args.count, args.verbose,
+                                    default_guess=default_guess)
     if args.count or args.many:
         print n_solutions, "solutions."
     if n_solutions == 0:
         if not args.count:
             print >>stderr, "No solutions."
-    print n_deadends, "dead ends"
+    print n_deadends, "dead ends", time.clock() - start, "sec."
     if n_solutions == 0:
         exit(1)
 

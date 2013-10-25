@@ -67,7 +67,7 @@ class State(object):
         # We should have caught any contradictions by now.            
         return True
 
-    def guess(self):
+    def guess(self, default_guess=None):
         """
         Return a guess: (var, value), where value is True or False.
         var.value must be Maybe at the time you guess.
@@ -77,11 +77,13 @@ class State(object):
         getting a solution sooner, is the Principle of Least Committment,
         which is to make the safest, most likely guess you can find.
         """
+        if default_guess == None:
+            default_guess == False
         var = self.maybe_vars.pop()
         self.maybe_vars.add(var)
-        return var, False
+        return var, default_guess
 
-    def generate_leaves(self,verbose=False):
+    def generate_leaves(self, verbose=False, default_guess=None):
         """
         Search for solutions.  Yield False when I'm at a dead end,
         and True when I'm at a solution.
@@ -99,7 +101,7 @@ class State(object):
                 # ...then fall down to the pop below.
 
             else:
-                var, value = self.guess()
+                var, value = self.guess(default_guess=default_guess)
                 if self.verbose:
                     print "guess", var.die, var.letter, value
                 assert var.value == Maybe, "You can only guess about Maybies."
