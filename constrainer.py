@@ -103,7 +103,7 @@ class State(object):
             else:
                 var, value = self.guess(default_guess=default_guess)
                 if self.verbose:
-                    print "guess", var.die, var.letter, value
+                    print "guess", str(var), value
                 assert var.value == Maybe, "You can only guess about Maybies."
                 assert value != Maybe, "Must guess True or False, not Maybe."
                 # This set() pushes the Maybe and sets the alternative.
@@ -125,12 +125,17 @@ class BoolVar(object):
     """
     def __init__(self, state, **kwargs):
         self.state = state
-        for kw in kwargs:
+        self.__kws = kws = kwargs.keys()
+        for kw in kws:
             self.__dict__[kw] = kwargs[kw]
         self.value = Maybe
         state.vars.add(self)
         state.maybe_vars.add(self)
         self.constraints = set()
+
+    def __repr__(self):
+        kw_args = [(kw, self.__dict__[kw]) for kw in self.__kws]
+        return "BoolVar(" + ", ".join("%s=%r" % ka for ka in kw_args) + ")"
 
     def be_constrained_by(self, constraint):
         """ Not meant to be called by the user. """
@@ -251,14 +256,14 @@ class BoolConstraint(object):
         if self.Maybes_must_be_True():
             for var in list(self[Maybe]):
                 if self.state.verbose:
-                    print "infer", var.letter, var.die, True
+                    print "infer", str(var), True
                 if not var.set(True):
                     return False
                 
         elif self.Maybes_must_be_False():
             for var in list(self[Maybe]):
                 if self.state.verbose:
-                    print "infer", var.letter, var.die, False
+                    print "infer", str(var), False
                 if not var.set(False):
                     return False
 

@@ -2,17 +2,12 @@
 """ soma.py -- Solver for Piet Hein's Soma cube puzzles. """
 
 from sys import stdout, stderr, exit
-from maybies import *
 from constrainer import *
 import os
 import time
-
-from ddict import ddict
 import argparse
 
-SHAPES_DIR = "soma_puzzles"
-CUBE_FILE = os.path.join(SHAPES_DIR, "cube.dat")
-PIECES_FILE = os.path.join(SHAPES_DIR, "soma_pieces.dat")
+from ddict import ddict
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -34,6 +29,10 @@ def parse_args():
         help="show search progress")
     return parser.parse_args()
 
+
+SHAPES_DIR = "soma_puzzles"
+CUBE_FILE = os.path.join(SHAPES_DIR, "cube.spz")
+PIECES_FILE = os.path.join(SHAPES_DIR, "soma_pieces.spc")
 
 # A shape is a list of 3D points as 3-tuples.
 # Actually that's a shape in an "orientation".
@@ -316,10 +315,51 @@ def show_first_rotations():
     show_rotations([PIECES_FILE, CUBE_FILE])
 
 
-def old_main():
-    show_first_orientations(PIECES_FILE, CUBE_FILE)
-    show_first_rotations()
+def sufficient_pieces(n_pieces_of, target_size):
+    """ 
+    Given a dict like {size_of_piece: how_many_that_size_we_have...}
+    and the size of the target, return a list of "populations", 
+    each a dict like {size_of_piece: how_many_that_size_to_use...}.
+    """
+    total = sum(size * n for (size, n) in n_pieces_of.iteritems())
+    if total < target_size or target_size < 0:
+        return []
+    
+    if not n_pieces_of:
+        return [{}]
 
+    size = n_pieces_of.keys()[0]
+    new_n_pieces_of = dict(n_pieces_of)
+    del new_n_pieces_of[size]
+    populations = []
+    for n in range(n_pieces_of[size] + 1):
+        for popu in sufficient_pieces(new_n_pieces_of, target_size - size * n):
+            popu[size] = n
+            populations.append(popu)
+    return populations            
+
+
+def get_n_unused(pieces, target):
+    # Find how many pieces of each size must be *un* used,
+    # in order to fill the number of voxels in target.
+    # If there is no workable "population", raise "can't".
+    # If more than one, "no unique # of pieces, sorry!"
+    #     (i.e. punt on that till later.  Probably should loosen
+    #      number-of-each-size constraints in that case.)
+    n_pieces_of = ddict[int] ()
+    for piece in pieces:
+        n_pieces_of[len(piece.shape)] += 1
+
+    populations = sufficient_pieces(n_pieces_of, len(target))
+    if not populations:
+        raise Exception("The pieces can't fill the %d bloxel target shape." 
+                        % len(target))
+
+    if len(populations) > 1:
+        raise Exception("Multiple subsets of piece sizes can be used, sorry!")
+        
+    popu = populations[0]
+    return dict((size, n_pieces_of[size] - popu[size]) for size in n_pieces_of)    
 
 def solve(target, piece_shapes, multi=False, just_count=False,
           verbose=False, default_guess=None):
@@ -331,7 +371,9 @@ def solve(target, piece_shapes, multi=False, just_count=False,
     # Let's only use "bloxel" to refer to points in the target.
     state = State(verbose=verbose)
 
-    # First we set up the Constraints:
+    # First we set up the Constraints.  Each is like a deputy who later
+    # gets assigned some variables and will make sure the number of True 
+    # variables under his watch stays in a range.
 
     # Each bloxel is occupied exactly once.
     point_bloxels = dict( (point, Bloxel(point)) for point in target)
@@ -350,30 +392,26 @@ def solve(target, piece_shapes, multi=False, just_count=False,
         oriented_one_way[piece] = BoolConstraint(state, piece=piece,
                                                         min_True=1, max_True=1)
 
-    # Constraints on how many pieces are unused, for two sizes of piece:
-    n_4_pieces = sum(1 for piece in pieces if len(piece.shape) == 4)
-    n_3_pieces = sum(1 for piece in pieces if len(piece.shape) == 3)
-    assert n_3_pieces == 1 and n_3_pieces + n_4_pieces == len(pieces), \
-        "Don't know how to work with this set of pieces, sorry!"
-    n_unused = {4: n_4_pieces - (len(target) / 4),
-                3: n_3_pieces - (len(target) % 4) / 3}
-    assert len(target) % 4 in (3, 0) and n_unused[4] >= 0, \
-        "Target has %d bloxels, can't be made out of the pieces." % len(target)
-    how_many_unused = {}
-    for piece_size in 3, 4:
-        how_many_unused[piece_size] = \
-            BoolConstraint(state, piece_size=piece_size,
-                                  min_True=n_unused[piece_size],
-                                  max_True=n_unused[piece_size])
+    # Constraints on how many pieces are unused, given sizes of pieces:
+    n_unused = get_n_unused(pieces, target)
     t_unused = sum(n_unused.values())
     if t_unused == 0:
         print "All", len(pieces), "pieces used."
     else:
         print len(pieces) - t_unused, "pieces used."
-    # Now the variables:
 
+    # A fixed number of pieces of each size will be unused.
+    how_many_unused = {}
+    for piece_size in n_unused:
+        how_many_unused[piece_size] = \
+            BoolConstraint(state, piece_size=piece_size,
+                                  min_True=n_unused[piece_size],
+                                  max_True=n_unused[piece_size])
+        
+    # Create the Variables and assign them to their Constraints.
     for piece in pieces:
         piece_unused = BoolVar(state, piece=piece, label="unused")
+        # Unused is one way a piece can be "oriented"; see loop below.
         oriented_one_way[piece].constrain(piece_unused)
         piece_size = len(piece.shape)
         how_many_unused[piece_size].constrain(piece_unused)
@@ -382,12 +420,15 @@ def solve(target, piece_shapes, multi=False, just_count=False,
             orient_bloxels = [point_bloxels[pt] for pt in orientation.shape]
             piece_oriented_thus = BoolVar(state, orientation=orientation,
                                                  bloxels=orient_bloxels)
+            # Each piece_oriented_thus is another way a piece can be oriented.
             oriented_one_way[piece].constrain(piece_oriented_thus)
             for bloxel in orient_bloxels:
                 occupied_once[bloxel].constrain(piece_oriented_thus)
 
     # Go solve it.
-        
+
+    stdout.flush()
+    stderr.flush()
     n_solutions = 0
     n_deadends = 0
     for is_solution in state.generate_leaves(verbose,
@@ -407,6 +448,7 @@ def solve(target, piece_shapes, multi=False, just_count=False,
         # Show a solution.
         point_labels = {}
         for bloxel in bloxels:
+            # Those vars overseen by occupied_once[bloxel] that are True.
             occupiers = occupied_once[bloxel][True]
             assert len(occupiers) == 1
             orientation_var = list(occupiers) [0]
