@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-constrainer.py -- boolean variables and constraints on them.
+constrainer.py -- a simple constraint-solver.
 """
 
 from maybies import *
@@ -18,7 +18,7 @@ class State(object):
         self.constraints = set()
         self.conflicted_constraints = set()
         self.eager_constraints = set()
-        self.log_stack = [[]]  # a list of lists of (var, prev_value) pairs.
+        self.log_stack = []  # a list of lists of (var, prev_value) pairs.
 
     def depth(self):
         return len(self.log_stack)
@@ -33,14 +33,23 @@ class State(object):
         Pop and undo one level of stack and return True,
         or return False if we hit bottom.
         """
+        if self.verbose:
+            print "pop",
         if len(self.log_stack) > 1:
             for var, value_to_restore in reversed(self.log_stack.pop()):
+                if self.verbose:
+                    print "reset", var, value_to_restore
+                    print "   ",
                 var.raw_set(value_to_restore)
+            if self.verbose:
+                print "depth", self.depth()
             return True
         
         else:
             # The bottom level is just for recording the initial setup;
             # it can't be popped.
+            if self.verbose:
+                print "done."
             return False
 
     def check_all(self):
@@ -71,14 +80,16 @@ class State(object):
         """
         Return a guess: (var, value), where value is True or False.
         var.value must be Maybe at the time you guess.
-        This is the default guesser; it just guesses that an arbitrary
-        Maybe is False.  You may want to subclass this class and override
-        this guesser.  If so, a good strategy to improve your chances of
-        getting a solution sooner, is the Principle of Least Committment,
-        which is to make the safest, most likely guess you can find.
+        This is the default guesser; by default it guesses that an arbitrary
+        Maybe is False.  (Or True if default_guess == True.)
+        Subclass this class to override this guessing strategy.  
+
+        Sometimes the "principle of least committment" strategy, to make the 
+        safest, most likely guess, seems to be fastest.
+        Other times it seems to go fastest to make a seeming brash guess.
         """
         if default_guess == None:
-            default_guess == False
+            default_guess = False
         var = self.maybe_vars.pop()
         self.maybe_vars.add(var)
         return var, default_guess
@@ -103,7 +114,7 @@ class State(object):
             else:
                 var, value = self.guess(default_guess=default_guess)
                 if self.verbose:
-                    print "guess", str(var), value
+                    print "guess", var, value
                 assert var.value == Maybe, "You can only guess about Maybies."
                 assert value != Maybe, "Must guess True or False, not Maybe."
                 # This set() pushes the Maybe and sets the alternative.
@@ -170,19 +181,19 @@ class BoolVar(object):
 
 class BoolConstraint(object):
     """ An object that manages a constraint over some vars. """
-    def __init__(self, state, **kwargs ):
+    def __init__(self, state, *vars, **kwargs ):
         self.min_True = 0
         self.max_True = None
-        self.label = {}
-        for kw in kwargs:
-            self.__dict__[kw] = kwargs[kw]
-            if kw not in ("min_True", "max_True"):
-                self.label[kw] = kwargs[kw]
+        self.min_True = kwargs["min_True"]; del kwargs["min_True"]
+        self.max_True = kwargs["max_True"]; del kwargs["max_True"]
+        self.label = dict(kwargs)
+        self.__dict__.update(kwargs)
 
         self.state = state
         state.constraints.add(self)
-        self.vars = set()
         self.var_categories = {True: set(), Maybe: set(), False: set()}
+        self.vars = set()
+        self.constrain(*vars)
 
     def __getitem__(self, value):
         """
@@ -195,12 +206,12 @@ class BoolConstraint(object):
     def __repr__(self):
         return "Constraint(" + str(self.label) + ")"
 
-    def constrain(self, var):
-        assert var not in self.vars, "Adding a var to a constraint twice."
-        
-        self.vars.add(var)
-        self[var.value].add(var)
-        var.be_constrained_by(self)
+    def constrain(self, *vars):
+        for var in vars:
+            assert var not in self.vars, "Adding %s to %s twice." % (var, self)
+            self.vars.add(var)
+            self[var.value].add(var)
+            var.be_constrained_by(self)
 
     def notice_change(self, var, prev_value, new_value):
         self[prev_value].discard(var)
@@ -256,14 +267,14 @@ class BoolConstraint(object):
         if self.Maybes_must_be_True():
             for var in list(self[Maybe]):
                 if self.state.verbose:
-                    print "infer", str(var), True
+                    print "    infer", str(var), True
                 if not var.set(True):
                     return False
                 
         elif self.Maybes_must_be_False():
             for var in list(self[Maybe]):
                 if self.state.verbose:
-                    print "infer", str(var), False
+                    print "    infer", str(var), False
                 if not var.set(False):
                     return False
 

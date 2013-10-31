@@ -1,0 +1,244 @@
+Constrainer README
+
+    Constrainer is a small library for solving problems expressed as 
+    constraints between boolean variables.  It works by deducing variable
+    values when it can, and guessing (creating tree-search branches) only
+    when there are no deductions avaiable.
+
+    Constrainer is avalable under a BSD license.  See the LICENSE file in
+    the same directory as this README for details.
+
+QUICK START
+
+    Here's a simple program using constrainer to generate combinations out of
+    a set...
+
+        #!/usr/bin/env python
+        from constrainer import *
+
+        state = State()
+
+        vars = [BoolVar(state, name=n) for n in ["amy", "joe", "sue", "bob"]]
+
+        # Constrain so that between two and three of the variables must be true.
+        c =  BoolConstraint(state, min_True=2, max_True=3, vars=vars)
+
+        for is_solution in state.generate_leaves():
+            print [var.name for var in c[True]]
+
+    ...which prints:
+
+        ['bob', 'amy']
+        ['sue', 'amy']
+        ['sue', 'bob']
+        ['sue', 'bob', 'amy']
+        ['joe', 'amy']
+        ['joe', 'bob']
+        ['joe', 'bob', 'amy']
+        ['joe', 'sue']
+        ['joe', 'sue', 'amy']
+        ['joe', 'sue', 'bob']
+    
+    A version of the demo above with "--verbose" and "--default_guess" options
+    is in the file constrainer_demo.py.
+
+OBJECTS AND INITIALIZATION
+
+    There are three classes to know about: State, BoolVar and BoolConstraint.
+
+State
+    A State contains the information and methods to solve a problem.   Before
+    doing anything else you must create one.  The state must be given when 
+    creating any BoolVar or BoolConstraint.
+
+        from constrainer import *
+        state = State()
+
+BoolVar
+    A BoolVar is a True or False variable whose value is to be solved for.
+    (It's not a Python variable although it has a value; it's an object used
+    in the solving process and for reporting back results.)
+    BoolVar is (currently) the only kind of variable; we discuss that in
+    "Use Patterns," below.  BoolVars can be given arbitrary attributes to 
+    identify them and/or tie them to objects within your application.
+
+        >>> fred = BoolVar(state, ssn=1, moniker="fred", obj=my_object1)
+        >>> fred.ssn
+        1
+
+BoolConstraint
+    A BoolConstraint expresses a requirement on a subset of your variables.
+    Constraints serve three purposes:
+        o  They express in a declarative way what must be true in a valid
+           solution to your problem.
+        o  They let the solver deduce the values of some variables from other
+           variables they are constrained with.  This can lead to chains of
+           deductions without having to search through alternatives.
+        o  They let the solver decide whether the problem is unsolved, solved,
+           or "conflicted" (in a state that violates constraints).  The latter
+           corresponds to a dead end from which the solver must backtrack.
+
+    You can specify variables when creating the constraint, or tie variables
+    to a constraint after it's created, or both:
+
+        fred = BoolVar(state, ssn=1, moniker="fred", obj=my_object1)
+        mark = BoolVar(state, ssn=2, moniker="mark", obj=my_object2)
+        john = BoolVar(state, ssn=3, moniker="john", obj=my_object3)
+        c = BoolConstraint(state, fred, mark, min_True=1, max_True=1)
+        c.constrain(john)
+
+    If you have a list of variables, you can constrain them like this:
+
+        stooges = [fred, mark, john]
+        c = BoolConstraint(state, *stooges, min_True=1, max_True=1)
+
+    or like this:
+
+        c = BoolConstraint(state, min_True=1, max_True=1)
+        c.constrain(*stooges)
+
+    BoolConstraint is (currently) the only kind of constraint, and its
+    min_True and max_True attributes specify its only range of behaviors.
+    Next we cover some useful ways to use it.
+
+USE PATTERNS
+
+One-of-N
+
+    A typical pattern is a set of possible values for something.  Create a
+    BoolVar for each value and constrain the set so that exactly one is True:
+
+        x_values = []
+        for i in range(10):
+            name = "digit_is_%d" % i
+            x_values.append(BoolVar(state, name=name))
+        x_c = BoolConstraint(state, *x_values, min_True=1, max_True=1)
+
+    This has the effect that if one of the x_values becomes True, the rest all
+    become False, or if all but one become False, the last one becomes True.
+
+Criss-crossing constraints
+
+    Usually every variable is under more than one constraint.  For instance, in
+    the eight queens problem, there is one queen in each row, one queen in each
+    column, and at most one--i.e. zero or one--queen in each upward-slanting 
+    and each downward-slanting diagonal.  Here we create one BoolVar for each
+    square, collect them into appropriate subsets, and constrain the subsets:
+
+        cols = [[] for x in range(8)]
+        rows = [[] for y in range(8)]
+        up_diags = [[] for ud in range(15)]
+        dn_diags = [[] for dd in range(15)]
+        for x in range(8):
+            for y in range(8):
+                square = BoolVar(state, x=x, y=y)
+                cols[x].append(square)
+                rows[y].append(square)
+                up_diags[x + y].append(square)
+                dn_diags[x - y + 7].append(square)
+        for row_or_col in rows + cols:
+            BoolConstraint(state, *row_or_col, min_True=1, max_True=1)
+        for diag in up_diags + dn_diags:
+            BoolConstraint(state, *diag, min_True=0, max_True=1)
+
+Detecting whether one of N
+
+    Since not all diagonals are occupied, we might want a variable to stand for
+    whether a given diagonal is occupied.  We can do this with a "not-occupied"
+    variable and replacing the "zero or one" constraint with a constraint that
+    exactly one of (all the squares in the diagonal plus "not-occupied") are
+    true:
+        n_o = BoolVar(state, name="diag_not_occupied")
+        BoolConstraint(state, diag + [n_o], min_True=1, max_True=1)
+
+    Now "n_o" is the opposite sense of what we might want, but see "Boolean
+    Operations," below.
+
+Other values of min_True and max_True
+        
+    So far, the only values for min_True and max_True have been zero and one.
+    An example where other values are used is the demo "spell_dice.py" included
+    here.  spell_dice.py takes a set of dice with letters on their faces, and 
+    tries to spell a phrase.  There are BoolVars for 
+        "This die has this letter showing," 
+    and constraints for 
+        "This die only has one letter showing." 
+    Now imagine a phrase with three E's in it, and imagine that five of our 
+    dice have E on one face.   Then the program sets up a constraint that
+        "Exactly three of these five dice have E showing."
+    That reduces redundancy in both the results and the search, by not 
+    swapping the E's around pointlessly between places in the phrase.
+
+    Other combinations (say out of a set of N BoolVars):
+        min_True=1, max_True=N      at least one is True
+        min_True=N-1, max_True=N-1  exactly one is False
+        min_True=N-1, max_True=N    at most one is False
+        min_True=0, max_True=N-1    at least one is False
+        min_True=1, max_True=N-1    neither all are True nor all False
+
+Boolean Operations  
+
+    We can implement the complete set of Boolean operations using min_True, 
+    max_True, and sometimes an extra variable:
+
+        A is true:
+            This would usually mean that A doesn't need to be a variable, 
+            but it can be set up with:
+            BoolConstraint(state, A, min_True=1, max_True=1)
+        A is false:
+            This would usually mean that A doesn't need to be a variable, 
+            but it can be set up with:
+            BoolConstraint(state, A, min_True=0, max_True=0)
+        A and B are both true:
+            This would usually mean that A and B don't need to be variables, 
+            but it can be set up with:
+            BoolConstraint(state, A, min_True=1, max_True=1)
+            BoolConstraint(state, B, min_True=1, max_True=1)
+        A or B (or both) is true:
+            BoolConstraint(state, A, B, min_True=1, max_True=2)
+        A or B but not both is true:
+            BoolConstraint(state, A, B, min_True=1, max_True=1)
+        A is true iff B is false (note, same as the above):
+            BoolConstraint(state, A, B, min_True=1, max_True=1)
+
+        A implies not B (and B implies not A):
+            Same as A or B but not both, above.
+            BoolConstraint(state, A, B, min_True=0, max_True=1)
+        A implies B (and not-B implies not A):
+            not_B = BoolVar(state)
+            BoolConstraint(state, B, not_B, min_True=1, max_True=1)
+            BoolConstraint(state, A, not_B, min_True=0, max_True=1)
+        A iff B:
+            If you need two BoolVars to be separate but have the same value:
+            not_AB = BoolVar(state)
+            BoolConstraint(state, A, not_AB, min_True=1, max_True=1)
+            BoolConstraint(state, B, not_AB, min_True=1, max_True=1)
+
+        not(A or B) implies C; not(C) implies (A or B)
+            BoolConstraint(state, C, A, B, min_True=1, max_True=2)
+        C iff not(A or B):
+            BoolConstraint(state, C, A, B, min_True=1, max_True=2)
+            BoolConstraint(state, C, A, min_True=0, max_True=1)
+            BoolConstraint(state, C, B, min_True=0, max_True=1)
+        C iff (A or B):
+            not_C = BoolVar(state)
+            BoolConstraint(state, C, not_C, min_True=1, max_True=1)
+            BoolConstraint(state, not_C, A, B, min_True=1, max_True=2)
+            BoolConstraint(state, not_C, A, min_True=0, max_True=1)
+            BoolConstraint(state, not_C, B, min_True=0, max_True=1)
+        (A and B) implies not(C); C implies not(A and B):
+            BoolConstraint(state, C, A, B, min_True=0, max_True=2)
+        C iff not(A and B):
+            BoolConstraint(state, C, A, B, min_True=0, max_True=2)
+            BoolConstraint(state, C, A, min_True=1, max_True=2)
+            BoolConstraint(state, C, B, min_True=1, max_True=2)
+        C iff A and B:
+            not_C = BoolVar(state)
+            BoolConstraint(state, C, not_C, min_True=1, max_True=1)
+            BoolConstraint(state, not_C, A, B, min_True=0, max_True=2)
+            BoolConstraint(state, not_C, A, min_True=1, max_True=2)
+            BoolConstraint(state, not_C, B, min_True=1, max_True=2)
+        
+        C iff (A or B but not both -- A xor B):
+            BoolConstraint(state, C, A, B, min_True=1, max_True=2)
+    
