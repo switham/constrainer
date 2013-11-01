@@ -179,7 +179,7 @@ class BoolVar(object):
         return self.state.consistent()
 
     def __nonzero__(self):
-        """ bool(self) does this.  Only works if value != Maybe. """
+        """ bool(self) does this.  If value==Maybe, TypeError is raised. """
         return bool(self.value)
 
 

@@ -130,8 +130,8 @@ Values of Variables at Solutions
     Variables that aren't connected to constraints just remain Maybe.
     But generate_leaves() only yields True when a True or False value has been
     given to every constrained variable.  If you know what BoolVar you're 
-    interested in, you can access its ".value" attribute, or use it in an if 
-    statement:
+    interested in, you can access its ".value" attribute, or use it in an 
+    if-statement:
 
         in_the_study = BoolVar(state, ...)
         with_a_rope = BoolVar(state, ...)
@@ -164,7 +164,7 @@ Single or Multiple Solutions
     solution, you have to let the loop proceed to the end.  If you do, though,
     generate_leaves() will modify variables in its search and eventually set
     them all back to Maybe, so you will need to save or output any solution
-    details before you continue in the loop.
+    details you need before you continue in the loop.
 
 Why Generate Non-Solutions?
 
@@ -199,13 +199,13 @@ How it Works
     If no constraints are in conflict but some are eager, then each eager
     constraint in turn sets variables as it sees fit, then becomes uneager.  
     When one constraint sets variables it changes the False/Maybe/True counts
-    of other constraints and can cause them to become eager or conflicted.
+    of other constraints, which can cause them to become eager or conflicted.
     Inferences keep happening until there's a conflict or until no more
     constraints are eager.
 
     If there's no conflict, nobody's eager, and there are no Maybies, then
-    we have a solution, so we yield True (and backtrack looking for other
-    solutions).
+    we have a solution, so we yield True (and when the loop continues,
+    backtrack looking for other solutions).
 
     If there's no conflict, nobody's eager, but there are still Maybies, then
     the solver is at a choice point and has to guess.  The current default
@@ -214,13 +214,13 @@ How it Works
     (You can swap these with the --default_guess option... or customize the
     code.)
 
-    All along the solver keeps a stack of all the variable settings it's made
+    All along the solver keeps a stack of the variable settings it makes
     and how to undo each one.  Whenever it backtracks (either from a conflict
-    or from a solution), it undoes all the variables back to a choice point.
+    or from a solution), it unsets all the variables back to a choice point.
     If that was a left branch, the solver sets v to the opposite value and 
-    proceeds from there.  If it was the right, v is undone and it keeps
-    undoing back to a previous choice point.  When the right branch of the
-    very first choice is undone, the search process is over.
+    proceeds down the right branch.  If it was the right, v is unset and the
+    solver keeps undoing back to a previous choice point.  When the right 
+    branch of the very first choice is undone, the search process is over.
 
     
 
