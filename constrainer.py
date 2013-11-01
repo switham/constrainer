@@ -178,6 +178,10 @@ class BoolVar(object):
             constraint.notice_change(self, prev_value, value)
         return self.state.consistent()
 
+    def __nonzero__(self):
+        """ bool(self) does this.  Only works if value != Maybe. """
+        return bool(self.value)
+
 
 class BoolConstraint(object):
     """ An object that manages a constraint over some vars. """

@@ -39,27 +39,30 @@ QUICK START
         ['joe', 'sue', 'amy']
         ['joe', 'sue', 'bob']
     
-    A version of the demo above with "--verbose" and "--default_guess" options
-    is in the file constrainer_demo.py.
+    A slightly expanded version of the demo above with "--verbose" and 
+    "--default_guess" options is in the file constrainer_demo.py.
 
 OBJECTS AND INITIALIZATION
 
     There are three classes to know about: State, BoolVar and BoolConstraint.
 
 State
-    A State contains the information and methods to solve a problem.   Before
-    doing anything else you must create one.  The state must be given when 
-    creating any BoolVar or BoolConstraint.
+    A State ties together the problem description.   Before doing anything 
+    else you must create one.  The state must be given when creating any 
+    BoolVar or BoolConstraint.
 
         from constrainer import *
         state = State()
+
+    The state also contains the generate_leaves() method which carries out
+    to problem-solving process as described in "Generating Solutions."
 
 BoolVar
     A BoolVar is a True or False variable whose value is to be solved for.
     (It's not a Python variable although it has a value; it's an object used
     in the solving process and for reporting back results.)
     BoolVar is (currently) the only kind of variable; we discuss that in
-    "Use Patterns," below.  BoolVars can be given arbitrary attributes to 
+    "Setup Patterns," below.  BoolVars can be given arbitrary attributes to 
     identify them and/or tie them to objects within your application.
 
         >>> fred = BoolVar(state, ssn=1, moniker="fred", obj=my_object1)
@@ -75,8 +78,9 @@ BoolConstraint
            variables they are constrained with.  This can lead to chains of
            deductions without having to search through alternatives.
         o  They let the solver decide whether the problem is unsolved, solved,
-           or "conflicted" (in a state that violates constraints).  The latter
-           corresponds to a dead end from which the solver must backtrack.
+           or in conflict.  Conflict means that variables have been set in a
+           way that violates one or more of the constraints, meaning a dead
+           end from which the solver must backtrack.
 
     You can specify variables when creating the constraint, or tie variables
     to a constraint after it's created, or both:
@@ -98,15 +102,135 @@ BoolConstraint
         c.constrain(*stooges)
 
     BoolConstraint is (currently) the only kind of constraint, and its
-    min_True and max_True attributes specify its only range of behaviors.
-    Next we cover some useful ways to use it.
+    min_True and max_True attributes specify its complete range of conditions.
 
-USE PATTERNS
+    Using constraints to describe problems is covered in "Setup Patterns."
 
-One-of-N
+GENERATING SOLUTIONS
 
-    A typical pattern is a set of possible values for something.  Create a
-    BoolVar for each value and constrain the set so that exactly one is True:
+    When the problem variables and constraints are first set up, all the 
+    variables are set to a value called Maybe.  Don't try to set BoolVar 
+    variables "manually".  You might sometimes want to constrain individual 
+    variables to fixed values, but those constraints only take effect once 
+    the solving process begins.
+
+    To look for a solution or solutions, call the State.generate_leaves()    
+    method.  It's a generator, and the easiest way to use it is with a for 
+    loop:
+
+        for is_solution in state.generate_leaves():
+            if is_solution:
+                print "I found a solution."
+            else:
+                print "I hit a conflict."
+        print "I have run out of possibilities."
+
+Values of Variables at Solutions
+
+    Variables that aren't connected to constraints just remain Maybe.
+    But generate_leaves() only yields True when a True or False value has been
+    given to every constrained variable.  If you know what BoolVar you're 
+    interested in, you can access its ".value" attribute, or use it in an if 
+    statement:
+
+        in_the_study = BoolVar(state, ...)
+        with_a_rope = BoolVar(state, ...)
+        ...
+        for is_solution in state.generate_leaves():
+            if is_solution:
+                if in_the_study:
+                    if with_a_rope.value == True:
+                        print "But there's no chandelier there!"
+
+    If you want to find which of the variables connected to a certain
+    constraint are True, or which are False, you can find out through 
+    the constraint object:
+
+        ...
+        suspects.append(BoolVar(state, name="Mr. Bonzini"))
+        who_dunnit = BoolConstraint(state, *suspects, min_True=1, max_True=1)
+        ....
+        for is_solution in state.generate_leaves():
+            if is_solution:
+                who = who_dunnit[True]
+                print who[0].name, "did it!"
+                innocents = [var.name for var in who_dunnit[False]]
+                print "These people didn't do it:", innocents
+
+Single or Multiple Solutions
+
+    If you're only interested in one solution, then it's fine to leave the
+    loop once you've found it.  If you want to know whether it is the *only*
+    solution, you have to let the loop proceed to the end.  If you do, though,
+    generate_leaves() will modify variables in its search and eventually set
+    them all back to Maybe, so you will need to save or output any solution
+    details before you continue in the loop.
+
+Why Generate Non-Solutions?
+
+    generate_leaves() yields a False whenever it gets into a conflict.  The
+    reason there's an output in that situation is that in my programs I want
+    to count the dead ends as a measure of how hard problems are or how good
+    guessing strategies (see below) are for a problem.  In any dead end you 
+    can look at variable values just as with solutions, except there will 
+    typically be some Maybe values.  For a constraint c, you can ask for its 
+    c[Maybe] list.
+
+How it Works
+
+    The principle of a constraint solver is pretty simple.  Each constraint
+    sees whenever its variables are changed, and can tell by its variables and 
+    its min_True and max_True values whether its rule is in conflict, or allows
+    an inference, or is just quiet.  While there are inferences to be made, that
+    saves guesswork, but when all's quiet, a bit of tree-searching has to be
+    done.  The combined process is accomplished with bookkeeping and tiptoeing,
+    only really fast.
+
+    Each constraint c has 
+    a set of its variables: c.vars, and these are divided into three sets:
+    c[False], c[Maybe] and c[True].  If len(c[True]) > c.max_True, or if 
+    (more complicated) there are too many False, then the constraint is in
+    conflict.
+
+    If a constraint isn't in conflict, but it has Maybies and they must now
+    be either all True or all False according to its variables and its rule, 
+    then the constraint is "eager" to set those variables.
+
+    If no constraints are in conflict but some are eager, then each eager
+    constraint in turn sets variables as it sees fit, then becomes uneager.  
+    When one constraint sets variables it changes the False/Maybe/True counts
+    of other constraints and can cause them to become eager or conflicted.
+    Inferences keep happening until there's a conflict or until no more
+    constraints are eager.
+
+    If there's no conflict, nobody's eager, and there are no Maybies, then
+    we have a solution, so we yield True (and backtrack looking for other
+    solutions).
+
+    If there's no conflict, nobody's eager, but there are still Maybies, then
+    the solver is at a choice point and has to guess.  The current default
+    strategy is to pick an arbitrary Maybe variable (say v) and make a branch
+    in the search with v = False on the left and v = True on the right.
+    (You can swap these with the --default_guess option... or customize the
+    code.)
+
+    All along the solver keeps a stack of all the variable settings it's made
+    and how to undo each one.  Whenever it backtracks (either from a conflict
+    or from a solution), it undoes all the variables back to a choice point.
+    If that was a left branch, the solver sets v to the opposite value and 
+    proceeds from there.  If it was the right, v is undone and it keeps
+    undoing back to a previous choice point.  When the right branch of the
+    very first choice is undone, the search process is over.
+
+    
+
+SETUP PATTERNS
+
+Small Numbers, Sets, Enums
+
+    Given only Boolean variables, we can represent choices out of small sets.
+    Create a BoolVar for each value or choice, and constrain the set so that 
+    exactly one is True:
 
         x_values = []
         for i in range(10):
@@ -178,67 +302,49 @@ Other values of min_True and max_True
 
 Boolean Operations  
 
-    We can implement the complete set of Boolean operations using min_True, 
-    max_True, and sometimes an extra variable:
+    The representational methods so far are good enough for the soma.py and
+    spelldice.py examples included with constrainer.  But BoolConstraints and 
+    BoolVars can implement the complete set of Boolean operations (and, or, 
+    not...) in arbitrarily complex arrangements.
 
-        A is true:
-            This would usually mean that A doesn't need to be a variable, 
-            but it can be set up with:
-            BoolConstraint(state, A, min_True=1, max_True=1)
-        A is false:
-            This would usually mean that A doesn't need to be a variable, 
-            but it can be set up with:
-            BoolConstraint(state, A, min_True=0, max_True=0)
-        A and B are both true:
-            This would usually mean that A and B don't need to be variables, 
-            but it can be set up with:
-            BoolConstraint(state, A, min_True=1, max_True=1)
-            BoolConstraint(state, B, min_True=1, max_True=1)
-        A or B (or both) is true:
+    It's worth noting first that in general 
+    constraints express relations, not just functions.  A relation
+    between variables A and B can allow more than one value of A for a given
+    B and vice versa.  Also, even when a constraint expresses a function,
+    and unlike logic functions in most computer languages or digital 
+    circuitry, constraints don't have dedicated inputs and outputs; 
+    information can flow in any direction that's a logical inference from the
+    known variables and constraints.
+
+    A simple relation is the "implies" relationship:
+
+        not(A) implies B
             BoolConstraint(state, A, B, min_True=1, max_True=2)
-        A or B but not both is true:
-            BoolConstraint(state, A, B, min_True=1, max_True=1)
-        A is true iff B is false (note, same as the above):
+
+    This constraint also means, "Not(B) implies A," and "A or B or both."
+    Note that if A is true, B can be true or false, and if B is true, A
+    can be true or false.  They just can't both be false.
+
+    The NOT function is one-to-one, which means each of the variables is
+    completely determined by the other:
+
+        A = not(B):
             BoolConstraint(state, A, B, min_True=1, max_True=1)
 
-        A implies not B (and B implies not A):
-            Same as A or B but not both, above.
-            BoolConstraint(state, A, B, min_True=0, max_True=1)
-        A implies B (and not-B implies not A):
-            not_B = BoolVar(state)
-            BoolConstraint(state, B, not_B, min_True=1, max_True=1)
-            BoolConstraint(state, A, not_B, min_True=0, max_True=1)
-        A iff B:
-            If you need two BoolVars to be separate but have the same value:
-            not_AB = BoolVar(state)
-            BoolConstraint(state, A, not_AB, min_True=1, max_True=1)
-            BoolConstraint(state, B, not_AB, min_True=1, max_True=1)
+    (This also means, "A or B but not both," and "B = not(A).")  Here's
+    the NAND relation:
 
-        not(A or B) implies C; not(C) implies (A or B)
-            BoolConstraint(state, C, A, B, min_True=1, max_True=2)
-        C iff not(A or B):
-            BoolConstraint(state, C, A, B, min_True=1, max_True=2)
-            BoolConstraint(state, C, A, min_True=0, max_True=1)
-            BoolConstraint(state, C, B, min_True=0, max_True=1)
-        C iff (A or B):
-            not_C = BoolVar(state)
-            BoolConstraint(state, C, not_C, min_True=1, max_True=1)
-            BoolConstraint(state, not_C, A, B, min_True=1, max_True=2)
-            BoolConstraint(state, not_C, A, min_True=0, max_True=1)
-            BoolConstraint(state, not_C, B, min_True=0, max_True=1)
-        (A and B) implies not(C); C implies not(A and B):
-            BoolConstraint(state, C, A, B, min_True=0, max_True=2)
-        C iff not(A and B):
+        C = NAND(a, b) = not(A and B):
             BoolConstraint(state, C, A, B, min_True=0, max_True=2)
             BoolConstraint(state, C, A, min_True=1, max_True=2)
             BoolConstraint(state, C, B, min_True=1, max_True=2)
-        C iff A and B:
-            not_C = BoolVar(state)
-            BoolConstraint(state, C, not_C, min_True=1, max_True=1)
-            BoolConstraint(state, not_C, A, B, min_True=0, max_True=2)
-            BoolConstraint(state, not_C, A, min_True=1, max_True=2)
-            BoolConstraint(state, not_C, B, min_True=1, max_True=2)
-        
-        C iff (A or B but not both -- A xor B):
-            BoolConstraint(state, C, A, B, min_True=1, max_True=2)
-    
+
+    With NAND, C is completely determined by A and B, but neither A nor B is 
+    completely determined by the other two.
+
+    With NOT and NAND and enough extra variables you can build any Boolean
+    function, starting with AND and OR...
+
+        A and B = not(NAND(A, B))
+        A or B = NAND(not(A), not(B))
+
