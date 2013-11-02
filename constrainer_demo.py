@@ -15,6 +15,7 @@ def demo(verbose=False, default_guess=None):
 
     for is_solution in state.generate_leaves(verbose=verbose, 
                                              default_guess=default_guess):
+        print "Depth:", state.depth()
         print [var.name for var in c[True]]
         print dict((var.name, var.value) for var in vars)
         print

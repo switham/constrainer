@@ -39,8 +39,7 @@ QUICK START
         ['joe', 'sue', 'amy']
         ['joe', 'sue', 'bob']
     
-    A slightly expanded version of the demo above with "--verbose" and 
-    "--default_guess" options is in the file constrainer_demo.py.
+    An expanded version of this demo is in the file constrainer_demo.py.
 
 OBJECTS AND INITIALIZATION
 
@@ -109,14 +108,21 @@ BoolConstraint
 GENERATING SOLUTIONS
 
     When the problem variables and constraints are first set up, all the 
-    variables are set to a value called Maybe.  Don't try to set BoolVar 
-    variables "manually".  You might sometimes want to constrain individual 
-    variables to fixed values, but those constraints only take effect once 
-    the solving process begins.
+    variables are set to a value called Maybe, corresponding to an unfilled
+    blank.  The solution process replaces Maybies
+    with definite True or False values, whether through deduction or by
+    guessing.  A leaf of the search tree is reached when either a contradiction
+    is found, or all the blanks are filled without contradiction.
+
+    Don't try to set BoolVar variables "manually".  You can constrain 
+    individual variables to fixed values (those constraints will take 
+    effect once the solving process begins).  Also, once the search begins,
+    constrainer can't handle having variables or constraints added or
+    modified.
 
     To look for a solution or solutions, call the State.generate_leaves()    
-    method.  It's a generator, and the easiest way to use it is with a for 
-    loop:
+    method.  It's a generator, and the easiest way to use it is with a 
+    for-loop:
 
         for is_solution in state.generate_leaves():
             if is_solution:
@@ -127,8 +133,7 @@ GENERATING SOLUTIONS
 
 Values of Variables at Solutions
 
-    Variables that aren't connected to constraints just remain Maybe.
-    But generate_leaves() only yields True when a True or False value has been
+    generate_leaves() only yields True when a True or False value has been
     given to every constrained variable.  If you know what BoolVar you're 
     interested in, you can access its ".value" attribute, or use it in an 
     if-statement:
@@ -147,7 +152,7 @@ Values of Variables at Solutions
     the constraint object:
 
         ...
-        suspects.append(BoolVar(state, name="Mr. Bonzini"))
+        suspects = [BoolVar(state, name=n) for n in ["Mr. Bonzini", ...]]
         who_dunnit = BoolConstraint(state, *suspects, min_True=1, max_True=1)
         ....
         for is_solution in state.generate_leaves():
@@ -176,54 +181,35 @@ Why Generate Non-Solutions?
     typically be some Maybe values.  For a constraint c, you can ask for its 
     c[Maybe] list.
 
-How it Works
+Search Depth
 
-    The principle of a constraint solver is pretty simple.  Each constraint
-    sees whenever its variables are changed, and can tell by its variables and 
-    its min_True and max_True values whether its rule is in conflict, or allows
-    an inference, or is just quiet.  While there are inferences to be made, that
-    saves guesswork, but when all's quiet, a bit of tree-searching has to be
-    done.  The combined process is accomplished with bookkeeping and tiptoeing,
-    only really fast.
+    At any solution or dead end, the State.depth() method gives an idea now
+    deep in the search tree you are--how many guesses have been made.  This
+    number is currently skewed: every left branch increases the depth by 2
+    and every right branch by 1.
 
-    Each constraint c has 
-    a set of its variables: c.vars, and these are divided into three sets:
-    c[False], c[Maybe] and c[True].  If len(c[True]) > c.max_True, or if 
-    (more complicated) there are too many False, then the constraint is in
-    conflict.
+Deterministic Inferences vs. Guessing Strategy
 
-    If a constraint isn't in conflict, but it has Maybies and they must now
-    be either all True or all False according to its variables and its rule, 
-    then the constraint is "eager" to set those variables.
+    The idea of constraint-based problem solving is to deduce as many 
+    variables' values as possible before resorting to a guess.  Direct 
+    inference is done by the constraints themselves: each constraint "watches" 
+    its variables being set and can recognize a contradiction to its rule (too 
+    many False's or too many True's) or a situation where its remaining blanks 
+    can be filled in in only one way consistent with its rule.  Filling in 
+    those variables can in turn wake up other constraints, and so on.
 
-    If no constraints are in conflict but some are eager, then each eager
-    constraint in turn sets variables as it sees fit, then becomes uneager.  
-    When one constraint sets variables it changes the False/Maybe/True counts
-    of other constraints, which can cause them to become eager or conflicted.
-    Inferences keep happening until there's a conflict or until no more
-    constraints are eager.
-
-    If there's no conflict, nobody's eager, and there are no Maybies, then
-    we have a solution, so we yield True (and when the loop continues,
-    backtrack looking for other solutions).
-
-    If there's no conflict, nobody's eager, but there are still Maybies, then
-    the solver is at a choice point and has to guess.  The current default
+    The cascade of direct inferences from a given state is fixed by the 
+    constraints.  Either there is a contradiction, or a certain set of blanks 
+    will be filled in in a certain way.  Once inferences have gone as far as
+    they can, if there are still Maybies, the system needs to try alternatives,
+    which requires a way to guess.  The current default
     strategy is to pick an arbitrary Maybe variable (say v) and make a branch
-    in the search with v = False on the left and v = True on the right.
-    (You can swap these with the --default_guess option... or customize the
-    code.)
-
-    All along the solver keeps a stack of the variable settings it makes
-    and how to undo each one.  Whenever it backtracks (either from a conflict
-    or from a solution), it unsets all the variables back to a choice point.
-    If that was a left branch, the solver sets v to the opposite value and 
-    proceeds down the right branch.  If it was the right, v is unset and the
-    solver keeps undoing back to a previous choice point.  When the right 
-    branch of the very first choice is undone, the search process is over.
-
+    in the search with v = False on the first, left side.  You can change that 
+    with the --default_guess option... or customize the code by sublclassing 
+    the State class and overriding its guess() method.  The value of v on the
+    right side of the branch is always the opposite of what was guessed on the
+    left.
     
-
 SETUP PATTERNS
 
 Small Numbers, Sets, Enums
@@ -348,3 +334,36 @@ Boolean Operations
         A and B = not(NAND(A, B))
         A or B = NAND(not(A), not(B))
 
+DEMOS AND SUPPORT CODE
+
+    The constrainer project contains these interesting things (and more):
+
+    ddict.py
+        An enhanced version of the standard Python collections.defaultdict
+        class.
+
+    maybies.py
+        Defines the Maybe placeholder value and its behavior.
+
+    spell_dice.py
+        Given a set of dice with letters on their faces, use the dice to
+        spell a given phrase.
+
+    boggle_dice4.sort
+    boggle_dice5.sort
+    kitchen_dice.sort
+        Three different sets of dice.
+
+    soma.py
+        Piet Hein's Soma puzzle.
+        Given a list of pieces made out of cubes, and a shape made out of
+        cubes, find ways to build the shape out of the pieces.
+    soma_puzzles/
+        *.spz
+            Puzzles for the standard Soma pieces in soma.spc
+    rotated_piece_pix.txt
+    cube.rtf
+        Typewriter pictures of Soma pieces rotated every which way.
+        Generated by shape_to_pic() and friends inside soma.py.
+            
+-fin-
