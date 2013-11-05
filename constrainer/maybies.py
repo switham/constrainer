@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """
 Maybies -- A substitute for a boolean that can't be used in "if", "and", "or".
+
+    Copyright (c) 2013 Steve Witham All rights reserved.  
+    Constrainer is available under a BSD license, whose full text is at
+        http://github.com/switham/constrainer/blob/master/LICENSE
 """
 
 class Maybies(object):

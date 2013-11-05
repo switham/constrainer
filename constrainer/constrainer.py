@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 """
 constrainer.py -- a simple constraint-solver.
+    Copyright (c) 2013 Steve Witham All rights reserved.  
+    Constrainer is available under a BSD license, whose full text is at
+        http://github.com/switham/constrainer/blob/master/LICENSE
 """
 
 from maybies import *
 
 
 class State(object):
-    """ The overall state for a constraints problem-solving process. """
+    """ The overall state for a constraints-problem-solving process. """
 
     def __init__(self, verbose=False):
         if verbose:

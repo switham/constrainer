@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-"""
-Spell a given word using letter dice.
-This time using constrainer.py instead of state2D.py.
+""" examples/spell_dice.py -- Spell a given word or phrase using letter dice.
+    Copyright (c) 2013 Steve Witham All rights reserved.  
+    Constrainer is available under a BSD license, whose full text is at
+        http://github.com/switham/constrainer/blob/master/LICENSE
 """
 
 import sys

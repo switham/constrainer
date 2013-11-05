@@ -5,8 +5,9 @@ Constrainer README
     values when it can, and guessing (creating tree-search branches) only
     when there are no deductions avaiable.
 
-    Constrainer is avalable under a BSD license.  See the LICENSE file in
-    the same directory as this README for details.
+    Copyright (c) 2013 Steve Witham All rights reserved.  
+    Constrainer is available under a BSD license, whose full text is at
+        http://github.com/switham/constrainer/blob/master/LICENSE
 
 QUICK START
 
