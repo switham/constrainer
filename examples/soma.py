@@ -7,7 +7,7 @@ import os
 import time
 import argparse
 
-from ddict import ddict
+from constrainer.ddict import ddict
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
