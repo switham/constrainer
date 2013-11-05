@@ -6,7 +6,7 @@ ghijkl comment comment etc
 with both letters in die (first field) and lines sorted alphabetically.
     Copyright (c) 2013 Steve Witham All rights reserved.  
     Constrainer is available under a BSD license, whose full text is at
-        http://github.com/switham/constrainer/blob/master/LICENSE
+        https://github.com/switham/constrainer/blob/master/LICENSE
 """
 
 from sys import stdin

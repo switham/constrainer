@@ -7,7 +7,7 @@ Constrainer README
 
     Copyright (c) 2013 Steve Witham All rights reserved.  
     Constrainer is available under a BSD license, whose full text is at
-        http://github.com/switham/constrainer/blob/master/LICENSE
+        https://github.com/switham/constrainer/blob/master/LICENSE
 
 QUICK START
 
@@ -22,7 +22,7 @@ QUICK START
         vars = [BoolVar(state, name=n) for n in ["amy", "joe", "sue", "bob"]]
 
         # Constrain so that between two and three of the variables must be true.
-        c =  BoolConstraint(state, min_True=2, max_True=3, vars=vars)
+        c =  BoolConstraint(state, *vars, min_True=2, max_True=3)
 
         for is_solution in state.generate_leaves():
             print [var.name for var in c[True]]
