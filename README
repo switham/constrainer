@@ -183,7 +183,7 @@ Why Generate Non-Solutions?
 
 Search Depth
 
-    At any solution or dead end, the State.depth() method gives an idea now
+    At any solution or dead end, the State.depth() method gives an idea how
     deep in the search tree you are--how many guesses have been made.  This
     number is currently skewed: every left branch increases the depth by 2
     and every right branch by 1.
@@ -352,15 +352,17 @@ DEMOS AND SUPPORT CODE
     boggle_dice4.sort
     boggle_dice5.sort
     kitchen_dice.sort
-        Three different sets of dice.
+        Three different sets of letter dice.
 
     soma.py
         Piet Hein's Soma puzzle.
         Given a list of pieces made out of cubes, and a shape made out of
         cubes, find ways to build the shape out of the pieces.
     soma_puzzles/
+        soma_pieces.spc
+            Shapes of the standard Soma puzzle pieces.
         *.spz
-            Puzzles for the standard Soma pieces in soma.spc
+            Puzzles for the standard Soma pieces.  Not all have solutions.
     rotated_piece_pix.txt
     cube.rtf
         Typewriter pictures of Soma pieces rotated every which way.
