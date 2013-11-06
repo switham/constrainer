@@ -199,7 +199,7 @@ Deterministic Inferences vs. Guessing Strategy
     inference is done by the constraints themselves: each constraint "watches" 
     its variables being set and can recognize a contradiction to its rule (too 
     many False's or too many True's) or a situation where the rule dictates
-    how blank variables can be filled.  Filling in those variables can in turn 
+    how blank variables must be filled.  Filling in those variables can in turn 
     wake up other constraints, and so on.
 
     The cascade of direct inferences from a given state is fixed by the 
