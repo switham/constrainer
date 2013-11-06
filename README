@@ -63,9 +63,10 @@ BoolVar
     A BoolVar is a True or False variable whose value is to be solved for.
     (It's not a Python variable although it has a value; it's an object used
     in the solving process and for reporting back results.)
-    BoolVar is (currently) the only kind of variable; we discuss that in
-    "Setup Patterns," below.  BoolVars can be given arbitrary attributes to 
-    identify them and/or tie them to objects within your application.
+    BoolVar is (currently) the only kind of variable; using them to represent
+    more interesting situations is discussed in "Setup Patterns," below.  
+    BoolVars can be given arbitrary attributes to identify them and/or tie 
+    them to objects within your application.
 
         >>> fred = BoolVar(state, ssn=1, moniker="fred", obj=my_object1)
         >>> fred.ssn
@@ -112,10 +113,10 @@ GENERATING SOLUTIONS
 
     When the problem variables and constraints are first set up, all the 
     variables are set to a value called Maybe, corresponding to an unfilled
-    blank.  The solution process replaces Maybies
-    with definite True or False values, whether through deduction or by
-    guessing.  A leaf of the search tree is reached when either a contradiction
-    is found, or all the blanks are filled without contradiction.
+    blank.  The solution process replaces Maybies with definite True or False 
+    values, whether through deduction or by guessing.  A leaf of the search 
+    tree is reached when either a contradiction is found, or all the blanks 
+    are filled without contradiction.
 
     Don't try to set BoolVar variables "manually".  You can constrain 
     individual variables to fixed values (those constraints will take 
@@ -136,10 +137,10 @@ GENERATING SOLUTIONS
 
 Values of Variables at Solutions
 
-    generate_leaves() only yields True when a True or False value has been
-    given to every constrained variable.  If you know what BoolVar you're 
-    interested in, you can access its ".value" attribute, or use it in an 
-    if-statement:
+    state.generate_leaves() only yields True when a True or False value has 
+    been given to every BoolVar associated with state.  If you know what 
+    BoolVar you're interested in, you can access its ".value" attribute, or 
+    use it in an if-statement:
 
         in_the_study = BoolVar(state, ...)
         with_a_rope = BoolVar(state, ...)
@@ -150,9 +151,9 @@ Values of Variables at Solutions
                     if with_a_rope.value == True:
                         print "But there's no chandelier there!"
 
-    If you want to find which of the variables connected to a certain
-    constraint are True, or which are False, you can find out through 
-    the constraint object:
+    If you want a list of those variables connected to a certain constraint
+    that are True, or those that are False, you can find out through the
+    constraint object:
 
         ...
         suspects = [BoolVar(state, name=n) for n in ["Mr. Bonzini", ...]]
@@ -169,7 +170,7 @@ Single or Multiple Solutions
 
     If you're only interested in one solution, then it's fine to leave the
     loop once you've found it.  If you want to know whether it is the *only*
-    solution, you have to let the loop proceed to the end.  If you do, though,
+    solution, you have to let the loop continue.  If you do, though,
     generate_leaves() will modify variables in its search and eventually set
     them all back to Maybe, so you will need to save or output any solution
     details you need before you continue in the loop.
@@ -181,8 +182,8 @@ Why Generate Non-Solutions?
     to count the dead ends as a measure of how hard problems are or how good
     guessing strategies (see below) are for a problem.  In any dead end you 
     can look at variable values just as with solutions, except there will 
-    typically be some Maybe values.  For a constraint c, you can ask for its 
-    c[Maybe] list.
+    typically be some Maybe values.  You can get the c[Maybe] list for any
+    constraint c.
 
 Search Depth
 
@@ -197,9 +198,9 @@ Deterministic Inferences vs. Guessing Strategy
     variables' values as possible before resorting to a guess.  Direct 
     inference is done by the constraints themselves: each constraint "watches" 
     its variables being set and can recognize a contradiction to its rule (too 
-    many False's or too many True's) or a situation where its remaining blanks 
-    can be filled in in only one way consistent with its rule.  Filling in 
-    those variables can in turn wake up other constraints, and so on.
+    many False's or too many True's) or a situation where the rule dictates
+    how blank variables can be filled.  Filling in those variables can in turn 
+    wake up other constraints, and so on.
 
     The cascade of direct inferences from a given state is fixed by the 
     constraints.  Either there is a contradiction, or a certain set of blanks 
@@ -208,7 +209,7 @@ Deterministic Inferences vs. Guessing Strategy
     which requires a way to guess.  The current default
     strategy is to pick an arbitrary Maybe variable (say v) and make a branch
     in the search with v = False on the first, left side.  You can change that 
-    with the --default_guess option... or customize the code by sublclassing 
+    with the default_guess parameter... or customize the code by sublclassing 
     the State class and overriding its guess() method.  The value of v on the
     right side of the branch is always the opposite of what was guessed on the
     left.
@@ -275,7 +276,7 @@ Other values of min_True and max_True
     tries to spell a phrase.  There are BoolVars for 
         "This die has this letter showing," 
     and constraints for 
-        "This die only has one letter showing." 
+        "This die has just one letter showing." 
     Now imagine a phrase with three E's in it, and imagine that five of our 
     dice have E on one face.   Then the program sets up a constraint that
         "Exactly three of these five dice have E showing."
