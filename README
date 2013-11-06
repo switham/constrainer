@@ -1,6 +1,6 @@
 Constrainer README
 
-    Constrainer is a small library for solving problems expressed as 
+    Constrainer is a small Python library for solving problems expressed as 
     constraints between boolean variables.  It works by deducing variable
     values when it can, and guessing (creating tree-search branches) only
     when there are no deductions avaiable.
@@ -42,7 +42,30 @@ QUICK START
         ['joe', 'sue', 'amy']
         ['joe', 'sue', 'bob']
     
-    An expanded version of this demo is in the file constrainer_demo.py.
+    An expanded version of this demo is in the file 
+    examples/constrainer_demo.py.
+
+CONTENTS
+    intro
+    QUICK START
+    CONTENTS
+    OBJECTS AND INITIALIZATION
+        State
+        BoolVar
+        BoolConstraint
+    GENERATING SOLUTIONS    
+        Values of Variables at Solutions
+        Single or Multiple Solutions
+        Why Generate Non-Solutions?
+        Search Depth
+        Deterministic Inferences vs. Guessing Strategy
+    SETUP PATTERNS
+        Small Numbers, Sets, Enums
+        Criss-crossing constraints
+        Detecting whether one of N
+        Other values of min_True and max_True
+        Boolean Operations  
+    DEMOS AND SUPPORT CODE
 
 OBJECTS AND INITIALIZATION
 
@@ -216,6 +239,9 @@ Deterministic Inferences vs. Guessing Strategy
     
 SETUP PATTERNS
 
+    Here are some possibilities these simple tools can represent.  You will
+    find more ideas in the demos included.
+
 Small Numbers, Sets, Enums
 
     Given only Boolean variables, we can represent choices out of small sets.
@@ -260,13 +286,17 @@ Detecting whether one of N
     Since not all diagonals are occupied, we might want a variable to stand for
     whether a given diagonal is occupied.  We can do this with a "not-occupied"
     variable and replacing the "zero or one" constraint with a constraint that
-    exactly one of (all the squares in the diagonal plus "not-occupied") are
+    exactly one of (all the squares in the diagonal plus "not-occupied") is
     true:
         n_o = BoolVar(state, name="diag_not_occupied")
         BoolConstraint(state, diag + [n_o], min_True=1, max_True=1)
 
-    Now "n_o" is the opposite sense of what we might want, but see "Boolean
-    Operations," below.
+    For a set of sets, each with a "not-occupied" variable, you can then 
+    constrain the number of sets that are occupied (see "Other Values..."
+    next).
+
+    If you really need a variable that is true, rather than false, if one of a
+    set is true, see NOT under "Boolean Operations," below.
 
 Other values of min_True and max_True
         
@@ -359,9 +389,9 @@ DEMOS AND SUPPORT CODE
         Three different sets of letter dice.
 
     examples/soma.py
-        Piet Hein's Soma puzzle.
-        Given a list of pieces made out of cubes, and a shape made out of
-        cubes, find ways to build the shape out of the pieces.
+        Piet Hein's Soma puzzle: Given descriptions of some 3D puzzle piece 
+        shapes, and of a desired shape, find ways to build the shape out of 
+        the pieces.
     examples/soma_puzzles/
         soma_pieces.spc
             Shapes of the standard Soma puzzle pieces.
