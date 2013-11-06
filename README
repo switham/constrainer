@@ -151,8 +151,8 @@ Values of Variables at Solutions
                     if with_a_rope.value == True:
                         print "But there's no chandelier there!"
 
-    If you want a list of those variables connected to a certain constraint
-    that are True, or those that are False, you can find out through the
+    Lists of those variables connected to a certain constraint
+    that are True, or those that are False, are available through the
     constraint object:
 
         ...
