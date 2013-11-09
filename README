@@ -11,6 +11,20 @@ Constrainer README
     Constrainer is available under a BSD license, whose full text is at
         https://github.com/switham/constrainer/blob/master/LICENSE
 
+INSTALLING
+
+    Constrainer doesn't yet have an installer.  But it's pure Python, so...
+
+    Download and unpack the latest release:
+
+        curl -L https://github.com/switham/constrainer/v0.5.tar.gz >v0.5.tar.gz
+        tar xzf v0.5.tar.gz
+
+    This will create a directory constrainer-0.5.  Add the absolute path of
+    constrainer-0.5/constrainer to your PYTHONPATH environment variable.
+
+        export PYTHONPATH="$PYTHONPATH:/my/location/constrainer-0.5/constrainer"
+
 QUICK START
 
     Here's a simple program using constrainer to generate combinations out of
@@ -47,6 +61,7 @@ QUICK START
 
 CONTENTS
     intro
+    INSTALLATION
     QUICK START
     CONTENTS
     OBJECTS AND INITIALIZATION
