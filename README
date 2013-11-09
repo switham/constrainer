@@ -62,7 +62,7 @@ QUICK START
 
 CONTENTS
     intro
-    INSTALLATION
+    INSTALLING
     QUICK START
     CONTENTS
     OBJECTS AND INITIALIZATION
@@ -96,7 +96,7 @@ State
         state = State()
 
     The state also contains the generate_leaves() method which carries out
-    to problem-solving process as described in "Generating Solutions."
+    the problem-solving process as described in "Generating Solutions."
 
 BoolVar
     A BoolVar is a True or False variable whose value is to be solved for.
