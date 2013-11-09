@@ -17,13 +17,14 @@ INSTALLING
 
     Download and unpack the latest release:
 
-        curl -L https://github.com/switham/constrainer/v0.5.tar.gz >v0.5.tar.gz
+        curl -L https://github.com/switham/constrainer/archive/v0.5.tar.gz \
+            >v0.5.tar.gz
         tar xzf v0.5.tar.gz
 
     This will create a directory constrainer-0.5.  Add the absolute path of
-    constrainer-0.5/constrainer to your PYTHONPATH environment variable.
+    constrainer-0.5 to your PYTHONPATH environment variable.
 
-        export PYTHONPATH="$PYTHONPATH:/my/location/constrainer-0.5/constrainer"
+        export PYTHONPATH="$PYTHONPATH:/my/location/constrainer-0.5"
 
 QUICK START
 
