@@ -7,7 +7,7 @@ when there are no deductions avaiable.
 
 Constrainer contains demo solvers for letter-dice and Soma puzzles.
 
-Copyright (c) 2013 Steve Witham All rights reserved.  
+Copyright (c) 2013, 2014 Steve Witham All rights reserved.  
 Constrainer is available under a BSD license, whose full text is at
     https://github.com/switham/constrainer/blob/master/LICENSE
 
@@ -86,7 +86,7 @@ examples/constrainer_demo.py.
 
 ### Objects and Initialization
 
-    There are three classes to know about: State, BoolVar and BoolConstraint.
+There are three classes to know about: State, BoolVar and BoolConstraint.
 
 #### State
 
@@ -119,14 +119,14 @@ them to objects within your application.
 A BoolConstraint expresses a requirement on a subset of your variables.
 Constraints serve three purposes:
 
-o  They express in a declarative way what must be true in a valid
+*  They express in a declarative way what must be true in a valid
    solution to your problem.
 
-o  They let the solver deduce the values of some variables from other
+*  They let the solver deduce the values of some variables from other
    variables they are constrained with.  This can lead to chains of
    deductions without having to search through alternatives.
 
-o  They let the solver decide whether the problem is unsolved, solved,
+*  They let the solver decide whether the problem is unsolved, solved,
    or in conflict.  Conflict means that variables have been set in a
    way that violates one or more of the constraints, meaning a dead
    end from which the solver must backtrack.
