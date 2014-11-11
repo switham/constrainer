@@ -1,11 +1,11 @@
 ## Constrainer README
 
-Constrainer is a small Python library for solving problems expressed as 
+Constrainer is a Python module for solving problems expressed as 
 constraints between boolean variables.  It works by deducing variable
 values when it can, and guessing (creating tree-search branches) only
 when there are no deductions avaiable.
 
-Constrainer contains demo solvers for letter-dice and Soma puzzles.
+The examples directory contains a variety of puzzle solvers.
 
 Copyright (c) 2013, 2014 Steve Witham All rights reserved.  
 Constrainer is available under a BSD license, whose full text is at
