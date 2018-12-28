@@ -313,7 +313,7 @@ exactly one of (all the squares in the diagonal plus "not-occupied") is
 true:
 
     n_o = BoolVar(state, name="diag_not_occupied")
-    BoolConstraint(state, diag + [n_o], min_True=1, max_True=1)
+    BoolConstraint(state, *(diag + [n_o]), min_True=1, max_True=1)
 
 For a set of sets, each with a "not-occupied" variable, you can then 
 constrain the number of sets that are occupied (see "Other Values..."
